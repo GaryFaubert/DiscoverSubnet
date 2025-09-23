@@ -1,0 +1,1 @@
+﻿Name;Location;Type;IP(s)
