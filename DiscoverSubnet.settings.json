@@ -1,0 +1,10 @@
+{
+    "IpRanges":  "192.168.12.10-190",
+    "SnmpCommunity":  "medialinks",
+    "Retries":  0,
+    "OutputFileName":  "TestDiscovery",
+    "OutputFileExtension":  "txt",
+    "SaveUnresponsive":  true,
+    "MaxParallelScans":  1,
+    "DiagnosticLevel":  "Verbose"
+}
