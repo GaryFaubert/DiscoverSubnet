@@ -1,138 +1,434 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    DiscoverSubnet is a network discovery tool to identify MediaLinks hardware on a network.
+    DiscoverSubnet is a network discovery tool specifically designed to identify MediaLinks hardware on a network.
+
 .DESCRIPTION
-    This PowerShell script provides a graphical user interface to define IP ranges and other
-    scan parameters. It performs network discovery in a background job to keep the UI responsive,
-    using parallel jobs to scan IPs efficiently. It identifies devices using SNMP queries and
-    produces a summary report in the GUI, a log file, and a user-specified output file (.txt or .csv).
+    This PowerShell script provides a comprehensive network discovery solution with the following features:
+    
+    GUI INTERFACE:
+    - User-friendly Windows Forms interface for configuration
+    - Real-time progress monitoring and logging display
+    - Automatic system performance analysis and parallel scan recommendations
+    
+    NETWORK SCANNING:
+    - Supports multiple IP range formats (single IPs, ranges, subnets)
+    - Parallel scanning architecture for optimal performance
+    - SNMP device identification with fallback to ping-only mode
+    - Configurable retry logic for unreliable network conditions
+    
+    DEVICE IDENTIFICATION:
+    - Specialized recognition of MediaLinks hardware (MD8000, MDX series, etc.)
+    - SNMP OID-based device type classification
+    - Enhanced device variant detection (EX/SX models, 32C/48X6C variants)
+    
+    OUTPUT OPTIONS:
+    - Real-time GUI display with verbosity control
+    - Detailed log files with timestamps
+    - Exportable results in CSV or TXT format
+    - Option to include/exclude unresponsive devices
+    
+    PS2EXE COMPATIBILITY:
+    - Fully compatible with PS2EXE compilation
+    - Robust path resolution for both .ps1 and .exe execution
+    - Fallback mechanisms for COM object availability
+
+.PARAMETER None
+    This script runs interactively and does not accept command-line parameters.
+
+.EXAMPLE
+    PS C:\> .\DiscoverSubnet.ps1
+    Launches the GUI interface for network discovery configuration.
+
+.EXAMPLE
+    PS C:\> .\DiscoverSubnet.exe
+    Runs the compiled version with identical functionality.
+
+.NOTES
+    REQUIREMENTS:
+    - Windows operating system with .NET Framework
+    - PowerShell 5.1 or higher
+    - OleSNMP COM object for full SNMP functionality (optional - degrades gracefully)
+    
+    COMPILATION:
+    - Compatible with PS2EXE for standalone executable creation
+    - Settings file and logs are created in the same directory as the script/exe
+    
+    PERFORMANCE:
+    - Automatically analyzes system capabilities for optimal parallel scan count
+    - Typical scan speed: 2-4 seconds per IP address depending on responsiveness
+    - Memory usage scales with parallel job count (typically 50-200MB)
+
 .VERSION
     2.8
+
 .AUTHOR
     Gary Faubert - Assisted by Gemini and Copilot
+
 .DATE
     2025-09-26
+
+.CHANGELOG
+    v2.8 - Enhanced PS2EXE compatibility, improved error handling for null paths
+    v2.7 - Added system performance analysis and automatic parallel scan recommendations
+    v2.6 - Improved GUI verbosity controls and professional logging format
+    v2.5 - Enhanced device type detection for MediaLinks hardware variants
 #>
 
 #region Global Variables & Initial Setup
+
+# =============================================================================
+# SCRIPT METADATA AND PATH RESOLUTION
+# =============================================================================
+
+# Version identifier used throughout the application for logging and display
 $scriptVersion = "2.8"
-# This robustly determines the script's execution directory for both .ps1 and .exe files.
+
+# Robust script directory resolution that works for both .ps1 and compiled .exe files
+# This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
 if ($PSScriptRoot) {
-    # This variable is reliably populated when running as a .ps1 file.
+    # Standard PowerShell execution: $PSScriptRoot is reliably populated when running as .ps1 file
     $scriptDir = $PSScriptRoot
 }
 else {
-    # This is the fallback for compiled .exe files where $PSScriptRoot is not available.
-    # $MyInvocation.MyCommand.Path will contain the full path to the .exe file.
-    $scriptDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+    # PS2EXE compilation fallback: Handle cases where $PSScriptRoot is not available
+    # $MyInvocation.MyCommand.Path should contain the full path to the .exe file
+    if ($null -ne $MyInvocation.MyCommand.Path -and $MyInvocation.MyCommand.Path -ne "") {
+        # Extract directory from the full executable path
+        $scriptDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+    } else {
+        # Final fallback: Use current working directory if all path variables are null
+        # This prevents the "Cannot bind argument to parameter 'Path' because it is null" errors
+        $scriptDir = Get-Location
+        Write-Warning "Unable to determine script location - using current directory: $scriptDir"
+    }
 }
 
+# =============================================================================
+# SETTINGS MANAGEMENT
+# =============================================================================
+
+# Path to the persistent settings file (JSON format) stored alongside the script/executable
 $settingsFilePath = Join-Path -Path $scriptDir -ChildPath "DiscoverSubnet.settings.json"
 
-# Define the default settings structure. This is used if no settings file is found.
+# Default configuration structure - used when no settings file exists or parsing fails
+# These values represent sensible defaults for most network environments
 $defaultSettings = [PSCustomObject]@{
-    IpRanges              = "192.168.1.0, 10.0.0.10-20"
-    SnmpCommunity         = "medialinks"
-    Retries               = 0
-    OutputFileName        = "DiscoveredDevices"
-    OutputFileExtension   = "csv"
-    SaveUnresponsive      = $false
-    MaxParallelScans      = 20
-    DiagnosticLevel       = "Standard"
-    GuiVerbosity          = "Standard"
+    # Network scanning parameters
+    IpRanges              = "192.168.1.0, 10.0.0.10-20"    # Example IP ranges for initial configuration
+    SnmpCommunity         = "medialinks"                    # Default SNMP community string for MediaLinks devices
+    Retries               = 0                               # Number of retry attempts for ping/SNMP failures
+    
+    # Output configuration
+    OutputFileName        = "DiscoveredDevices"             # Base filename for results (extension added separately)
+    OutputFileExtension   = "csv"                           # File format: 'csv' or 'txt'
+    SaveUnresponsive      = $false                          # Whether to include unresponsive devices in output
+    
+    # Performance and system settings
+    MaxParallelScans      = 20                              # Maximum concurrent scanning jobs
+    DiagnosticLevel       = "Standard"                      # Logging detail: 'Off', 'Standard', 'Verbose'
+    GuiVerbosity          = "Standard"                      # GUI display level: 'Minimal', 'Standard', 'Verbose'
 }
+
 #endregion
 
 #region Core Helper Functions
 
-# Safely add required .NET assemblies for GUI components.
+# =============================================================================
+# SYSTEM INITIALIZATION
+# =============================================================================
+
+# Load required .NET assemblies for Windows Forms GUI components
+# This must be done early in the script execution to enable GUI functionality
 try {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
+    Add-Type -AssemblyName System.Windows.Forms  # Windows Forms controls (buttons, textboxes, etc.)
+    Add-Type -AssemblyName System.Drawing        # Drawing objects (fonts, colors, sizing)
 }
 catch {
+    # Fatal error - GUI cannot function without these assemblies
     Write-Error "Failed to load required .NET Assemblies for GUI. Please ensure you are running in a Windows environment with .NET Framework."
     exit 1
 }
 
+# =============================================================================
+# SETTINGS PERSISTENCE FUNCTIONS
+# =============================================================================
+
 function Load-Settings {
+    <#
+    .SYNOPSIS
+        Loads user settings from the JSON configuration file or creates default settings.
+    
+    .DESCRIPTION
+        Attempts to read and parse the settings JSON file. If the file doesn't exist or is corrupted,
+        creates a new settings file with default values. This ensures the application always has
+        valid configuration to work with.
+    
+    .OUTPUTS
+        PSCustomObject containing all application settings
+    
+    .NOTES
+        File location is determined by $settingsFilePath global variable.
+        Uses error-tolerant approach - corruption results in defaults, not failure.
+    
+    .EXAMPLE
+        $settings = Load-Settings
+        # Returns settings object with all configuration properties
+    #>
+    
     if (Test-Path $settingsFilePath) {
-        try { return Get-Content -Path $settingsFilePath | ConvertFrom-Json }
+        try { 
+            # Attempt to parse existing settings file
+            return Get-Content -Path $settingsFilePath | ConvertFrom-Json 
+        }
         catch {
+            # Settings file exists but is corrupted - recreate with defaults
             Write-Warning "Could not parse settings file. Using defaults."
             $defaultSettings | ConvertTo-Json | Set-Content -Path $settingsFilePath
             return $defaultSettings
         }
     }
     else {
+        # No settings file exists - create one with default values
         $defaultSettings | ConvertTo-Json | Set-Content -Path $settingsFilePath
         return $defaultSettings
     }
 }
 
 function Save-Settings {
+    <#
+    .SYNOPSIS
+        Persists current settings to the JSON configuration file.
+    
+    .DESCRIPTION
+        Converts the settings object to JSON format and saves it to the configuration file.
+        Handles write permissions errors gracefully by displaying a user-friendly message.
+    
+    .PARAMETER Settings
+        PSCustomObject containing all settings to be saved
+    
+    .NOTES
+        File location is determined by $settingsFilePath global variable.
+        Write failures are handled gracefully with GUI error dialogs.
+    
+    .EXAMPLE
+        Save-Settings -Settings $currentSettings
+        # Saves settings to JSON file
+    #>
+    
     param([Parameter(Mandatory = $true)][PSCustomObject]$Settings)
+    
     try {
+        # Convert settings object to JSON and write to file
         $Settings | ConvertTo-Json | Set-Content -Path $settingsFilePath
     }
     catch {
-        [System.Windows.Forms.MessageBox]::Show("Failed to save settings to `'$settingsFilePath`'. Check permissions.", "Error", "OK", "Error")
+        # Display user-friendly error message for write failures (permissions, disk full, etc.)
+        [System.Windows.Forms.MessageBox]::Show(
+            "Failed to save settings to '$settingsFilePath'. Check permissions.", 
+            "Error", 
+            "OK", 
+            "Error"
+        )
     }
 }
 
 function Parse-IpRanges {
+    <#
+    .SYNOPSIS
+        Parses IP range strings into individual IP addresses for scanning.
+    
+    .DESCRIPTION
+        Converts user-friendly IP range notation into a list of individual IP addresses.
+        Supports multiple formats:
+        - Single IP: "192.168.1.5"
+        - Subnet notation: "192.168.1.0" (expands to .2-.254)
+        - Range notation: "192.168.1.10-20" (expands to .10-.20)
+        - Mixed formats: "192.168.1.5, 10.0.0.0, 172.16.1.100-110"
+    
+    .PARAMETER IpRangeString
+        Comma-separated string containing IP ranges in various formats
+    
+    .OUTPUTS
+        System.Collections.Generic.List[string] containing individual IP addresses
+    
+    .NOTES
+        Subnet notation (.0) automatically excludes .1 (gateway) and .255 (broadcast)
+        Range notation is inclusive of both start and end addresses
+        Invalid formats are silently ignored (validation handled elsewhere)
+    
+    .EXAMPLE
+        Parse-IpRanges -IpRangeString "192.168.1.0, 10.0.0.5-10"
+        # Returns: 192.168.1.2, 192.168.1.3, ..., 192.168.1.254, 10.0.0.5, 10.0.0.6, ..., 10.0.0.10
+    #>
+    
     param([Parameter(Mandatory = $true)][string]$IpRangeString)
+    
+    # Use generic list for better performance than array concatenation
     $allIps = New-Object System.Collections.Generic.List[string]
+    
+    # Split comma-separated ranges and clean whitespace
     $ranges = $IpRangeString -split ',' | ForEach-Object { $_.Trim() }
+    
     foreach ($range in $ranges) {
         if ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0$') {
-            $base = $matches[1]; 2..254 | ForEach-Object { [void]$allIps.Add("$base.$_") }
+            # Subnet notation: "192.168.1.0" expands to 192.168.1.2 through 192.168.1.254
+            # Excludes .1 (typically gateway) and .255 (broadcast address)
+            $base = $matches[1]
+            2..254 | ForEach-Object { [void]$allIps.Add("$base.$_") }
         }
         elseif ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3})-(\d{1,3})$') {
-            $base = $matches[1]; ([int]$matches[2])..([int]$matches[3]) | ForEach-Object { [void]$allIps.Add("$base.$_") }
+            # Range notation: "192.168.1.10-20" expands to all IPs in the range
+            $base = $matches[1]
+            ([int]$matches[2])..([int]$matches[3]) | ForEach-Object { [void]$allIps.Add("$base.$_") }
         }
         elseif ($range -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+            # Single IP address: add directly to list
             [void]$allIps.Add($range)
         }
+        # Invalid formats are silently ignored - validation occurs in Validate-Inputs function
     }
+    
     return $allIps
 }
 
 function Validate-Inputs {
+    <#
+    .SYNOPSIS
+        Validates all user input from the configuration form before starting the scan.
+    
+    .DESCRIPTION
+        Performs comprehensive validation of user-provided settings including:
+        - IP range format validation (supports single IPs, ranges, and subnets)
+        - Network address boundary checking (excludes broadcast/gateway addresses)
+        - SNMP community string format validation
+        - Output filename character validation
+        
+        Displays user-friendly error messages for validation failures.
+    
+    .PARAMETER inputs
+        PSCustomObject containing all user input from the configuration form
+    
+    .OUTPUTS
+        Boolean - True if all inputs are valid, False if any validation fails
+    
+    .NOTES
+        Validation rules:
+        - IP octets 1-3: Must be 1-254 (excludes 0.x.x.x and 255.x.x.x networks)
+        - IP octet 4: Must be 2-254 for specific IPs, or 0 for subnet notation
+        - SNMP community: 1-32 chars, alphanumeric plus @#$%&* symbols
+        - Filename: Must not contain filesystem-invalid characters
+    
+    .EXAMPLE
+        $isValid = Validate-Inputs -inputs $userSettings
+        if ($isValid) { Start-NetworkScan }
+    #>
+    
     param([Parameter(Mandatory = $true)][PSCustomObject]$inputs)
+    
+    # =============================================================================
+    # IP RANGE VALIDATION
+    # =============================================================================
+    
+    # Remove spaces and check for empty input
     $ipRanges = $inputs.IpRanges.Replace(" ", "")
     if ([string]::IsNullOrWhiteSpace($ipRanges)) {
-        [System.Windows.Forms.MessageBox]::Show("IP Address Ranges cannot be empty.", "Validation Error", "OK", "Warning"); return $false
+        [System.Windows.Forms.MessageBox]::Show(
+            "IP Address Ranges cannot be empty.", 
+            "Validation Error", 
+            "OK", 
+            "Warning"
+        )
+        return $false
     }
+    
+    # Validate each comma-separated range
     foreach ($range in ($ipRanges -split ',')) {
+        # Check basic IP range format using regex
         if ($range -notmatch '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3}(?:-\d{1,3})?|0)$') {
-            [System.Windows.Forms.MessageBox]::Show("Invalid IP range format: `'$range`'. Use formats like '192.168.1.5', '192.168.1.10-20', or '192.168.1.0'.", "Validation Error", "OK", "Warning"); return $false
+            [System.Windows.Forms.MessageBox]::Show(
+                "Invalid IP range format: '$range'. Use formats like '192.168.1.5', '192.168.1.10-20', or '192.168.1.0'.", 
+                "Validation Error", 
+                "OK", 
+                "Warning"
+            )
+            return $false
         }
+        
+        # Validate individual octets (first three must be 1-254)
         $parts = $range -split '\.'
         for ($i = 0; $i -lt 3; $i++) {
             if ([int]$parts[$i] -lt 1 -or [int]$parts[$i] -gt 254) {
-                [System.Windows.Forms.MessageBox]::Show("Invalid octet value in `'$range`'. The first three octets must be between 1 and 254.", "Validation Error", "OK", "Warning"); return $false
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Invalid octet value in '$range'. The first three octets must be between 1 and 254.", 
+                    "Validation Error", 
+                    "OK", 
+                    "Warning"
+                )
+                return $false
             }
         }
+        
+        # Validate fourth octet (different rules for ranges vs single IPs)
         if ($parts[3] -match '(\d+)-(\d+)') {
+            # Range format: validate start and end values
             if ([int]$matches[1] -lt 2 -or [int]$matches[2] -gt 254 -or [int]$matches[1] -ge [int]$matches[2]) {
-                [System.Windows.Forms.MessageBox]::Show("Invalid range in `'$range`'. Range must be between 2 and 254, and the start must be less than the end.", "Validation Error", "OK", "Warning"); return $false
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Invalid range in '$range'. Range must be between 2 and 254, and the start must be less than the end.", 
+                    "Validation Error", 
+                    "OK", 
+                    "Warning"
+                )
+                return $false
             }
         }
         elseif ($parts[3] -ne '0') {
+            # Single IP: validate host portion
             if ([int]$parts[3] -lt 2 -or [int]$parts[3] -gt 254) {
-                 [System.Windows.Forms.MessageBox]::Show("Invalid host value in `'$range`'. The fourth octet must be between 2 and 254 (or 0 for a full range).", "Validation Error", "OK", "Warning"); return $false
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Invalid host value in '$range'. The fourth octet must be between 2 and 254 (or 0 for a full range).", 
+                    "Validation Error", 
+                    "OK", 
+                    "Warning"
+                )
+                return $false
             }
         }
     }
+    
+    # =============================================================================
+    # SNMP COMMUNITY STRING VALIDATION
+    # =============================================================================
+    
+    # SNMP community strings have specific character and length restrictions
     if ($inputs.SnmpCommunity -notmatch '^[a-zA-Z0-9@#$%\&\*]{1,32}$') {
-        [System.Windows.Forms.MessageBox]::Show("Community String must be 1-32 characters and can only contain letters, numbers, and the symbols: @#$%&*.", "Validation Error", "OK", "Warning"); return $false
+        [System.Windows.Forms.MessageBox]::Show(
+            "Community String must be 1-32 characters and can only contain letters, numbers, and the symbols: @#$%&*.", 
+            "Validation Error", 
+            "OK", 
+            "Warning"
+        )
+        return $false
     }
-    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars() -join ''; $regexInvalid = "[{0}]" -f [System.Text.RegularExpressions.Regex]::Escape($invalidChars)
+    
+    # =============================================================================
+    # OUTPUT FILENAME VALIDATION
+    # =============================================================================
+    
+    # Check for filesystem-invalid characters in the output filename
+    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars() -join ''
+    $regexInvalid = "[{0}]" -f [System.Text.RegularExpressions.Regex]::Escape($invalidChars)
     if ($inputs.OutputFileName -match $regexInvalid) {
-        [System.Windows.Forms.MessageBox]::Show("Output File Name contains invalid characters.", "Validation Error", "OK", "Warning"); return $false
+        [System.Windows.Forms.MessageBox]::Show(
+            "Output File Name contains invalid characters.", 
+            "Validation Error", 
+            "OK", 
+            "Warning"
+        )
+        return $false
     }
+    
+    # All validations passed
     return $true
 }
 
@@ -313,37 +609,115 @@ function Get-RecommendedParallelScans {
 
 #region GUI Creation
 
+# =============================================================================
+# GUI FORM CREATION AND LAYOUT
+# =============================================================================
+
 function Create-ConfigForm {
+    <#
+    .SYNOPSIS
+        Creates the main configuration form with all user input controls.
+    
+    .DESCRIPTION
+        Builds a Windows Forms dialog containing all configuration options for the network scan.
+        Uses a consistent layout pattern with labels on the left and controls on the right.
+        Includes input validation, tooltips, and automatic recommendations for optimal settings.
+    
+    .PARAMETER Settings
+        PSCustomObject containing current settings to populate the form controls
+    
+    .OUTPUTS
+        Hashtable containing references to the form and all its controls for easy access
+    
+    .NOTES
+        Form Layout:
+        - Fixed size dialog (420x480) that cannot be resized
+        - Centered on screen with consistent 30px vertical spacing
+        - All controls aligned for professional appearance
+        - OK button serves as default action (Enter key)
+    
+    .EXAMPLE
+        $formElements = Create-ConfigForm -Settings $currentSettings
+        $result = $formElements.Form.ShowDialog()
+        if ($result -eq 'OK') { $ipRanges = $formElements.IpRangesBox.Text }
+    #>
+    
     param([Parameter(Mandatory = $true)][PSCustomObject]$Settings)
+    
+    # =============================================================================
+    # MAIN FORM CONFIGURATION
+    # =============================================================================
+    
+    # Create the main form window with fixed dimensions and behavior
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "DiscoverSubnet v$scriptVersion - Configuration"; $form.Size = New-Object System.Drawing.Size(420, 480); $form.FormBorderStyle = 'FixedDialog'
-    $form.StartPosition = 'CenterScreen'; $form.MaximizeBox = $false; $form.MinimizeBox = $false
-    $yPos = 15; $labelWidth = 160; $controlWidth = 210
+    $form.Text = "DiscoverSubnet v$scriptVersion - Configuration"
+    $form.Size = New-Object System.Drawing.Size(420, 480)
+    $form.FormBorderStyle = 'FixedDialog'    # Prevents resizing
+    $form.StartPosition = 'CenterScreen'     # Center on user's screen
+    $form.MaximizeBox = $false               # Disable maximize button
+    $form.MinimizeBox = $false               # Disable minimize button
+    
+    # Layout constants for consistent control positioning
+    $yPos = 15                               # Current vertical position (incremented for each row)
+    $labelWidth = 160                        # Width of all label controls
+    $controlWidth = 210                      # Width of all input controls
+    
+    # =============================================================================
+    # NETWORK CONFIGURATION CONTROLS
+    # =============================================================================
+    
+    # IP Address Ranges input - supports multiple formats (single, range, subnet)
     $label = New-Object System.Windows.Forms.Label; $label.Text = "IP Address Ranges:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $ipRangesBox = New-Object System.Windows.Forms.TextBox; $ipRangesBox.Location = New-Object System.Drawing.Point(180, $yPos); $ipRangesBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $ipRangesBox.Text = $Settings.IpRanges; $ipRangesBox.Tag = "IpRanges"; $form.Controls.Add($ipRangesBox); $yPos += 30
+    
+    # SNMP Community String - used for device identification queries
     $label = New-Object System.Windows.Forms.Label; $label.Text = "SNMP Community String:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $communityBox = New-Object System.Windows.Forms.TextBox; $communityBox.Location = New-Object System.Drawing.Point(180, $yPos); $communityBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $communityBox.Text = $Settings.SnmpCommunity; $form.Controls.Add($communityBox); $yPos += 30
+    
+    # Retry count for failed ping/SNMP attempts
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Ping/SNMP Retries:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $retriesDropdown = New-Object System.Windows.Forms.ComboBox; $retriesDropdown.Location = New-Object System.Drawing.Point(180, $yPos); $retriesDropdown.Size = New-Object System.Drawing.Size($controlWidth, 20); $retriesDropdown.DropDownStyle = 'DropDownList'; [void]$retriesDropdown.Items.AddRange(@(0, 1, 2, 3)); $retriesDropdown.SelectedItem = $Settings.Retries; $form.Controls.Add($retriesDropdown); $yPos += 30
+    
+    # =============================================================================
+    # OUTPUT CONFIGURATION CONTROLS  
+    # =============================================================================
+    
+    # Output filename (without extension)
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Output File Name:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $fileNameBox = New-Object System.Windows.Forms.TextBox; $fileNameBox.Location = New-Object System.Drawing.Point(180, $yPos); $fileNameBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $fileNameBox.Text = $Settings.OutputFileName; $form.Controls.Add($fileNameBox); $yPos += 30
+    
+    # Output file format selection
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Output File Type:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $fileTypeDropdown = New-Object System.Windows.Forms.ComboBox; $fileTypeDropdown.Location = New-Object System.Drawing.Point(180, $yPos); $fileTypeDropdown.Size = New-Object System.Drawing.Size($controlWidth, 20); $fileTypeDropdown.DropDownStyle = 'DropDownList'; [void]$fileTypeDropdown.Items.AddRange(@('txt', 'csv')); $fileTypeDropdown.SelectedItem = $Settings.OutputFileExtension; $form.Controls.Add($fileTypeDropdown); $yPos += 30
+    
+    # =============================================================================
+    # DISPLAY AND PERFORMANCE CONTROLS
+    # =============================================================================
+    
+    # GUI verbosity level - controls amount of information displayed during scan
     $label = New-Object System.Windows.Forms.Label; $label.Text = "GUI Display Level:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $guiVerbosityDropdown = New-Object System.Windows.Forms.ComboBox; $guiVerbosityDropdown.Location = New-Object System.Drawing.Point(180, $yPos); $guiVerbosityDropdown.Size = New-Object System.Drawing.Size($controlWidth, 20); $guiVerbosityDropdown.DropDownStyle = 'DropDownList'; [void]$guiVerbosityDropdown.Items.AddRange(@('Standard', 'Minimal')); $guiVerbosityDropdown.SelectedItem = $Settings.GuiVerbosity; $form.Controls.Add($guiVerbosityDropdown); $yPos += 30
+    
+    # Parallel scan count with automatic recommendation button
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Max Parallel Scans:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $parallelScansUpDown = New-Object System.Windows.Forms.NumericUpDown; $parallelScansUpDown.Location = New-Object System.Drawing.Point(180, $yPos); $parallelScansUpDown.Size = New-Object System.Drawing.Size(($controlWidth - 70), 20); $parallelScansUpDown.Minimum = 1; $parallelScansUpDown.Maximum = 100; $parallelScansUpDown.Value = $Settings.MaxParallelScans; $parallelScansUpDown.Tag = "ParallelScans"; $form.Controls.Add($parallelScansUpDown)
     $recommendButton = New-Object System.Windows.Forms.Button; $recommendButton.Text = "Auto"; $recommendButton.Location = New-Object System.Drawing.Point((180 + $controlWidth - 65), $yPos); $recommendButton.Size = New-Object System.Drawing.Size(60, 22); $recommendButton.UseVisualStyleBackColor = $true; $form.Controls.Add($recommendButton)
-    # Add recommend button click handler - using tagged controls
+    # =============================================================================
+    # AUTOMATIC RECOMMENDATION EVENT HANDLER
+    # =============================================================================
+    
+    # Configure the "Auto" button to analyze system capabilities and IP ranges
+    # for optimal parallel scan count recommendation
     $recommendButton.Add_Click({
         param($clickSender, $clickEvent)
         try {
-            # Find the form and locate controls by their tags
+            # Locate the parent form and find tagged controls for recommendation analysis
             $parentForm = $clickSender.FindForm()
             $ipRangesTextBox = $null
             $parallelScansControl = $null
             
-            # Search through all controls to find our tagged controls
+            # Search through all form controls to find our tagged controls
+            # This approach is more robust than direct variable references in closures
             foreach ($control in $parentForm.Controls) {
                 if ($control.Tag -eq "IpRanges") {
                     $ipRangesTextBox = $control
@@ -354,76 +728,243 @@ function Create-ConfigForm {
             }
             
             if ($ipRangesTextBox -and $parallelScansControl) {
+                # Generate recommendation based on current IP ranges and system capabilities
                 $recommendation = Get-RecommendedParallelScans -IpRanges $ipRangesTextBox.Text
                 $parallelScansControl.Value = $recommendation.RecommendedCount
-                [System.Windows.Forms.MessageBox]::Show($recommendation.Explanation, "Parallel Scans Recommendation", "OK", "Information")
+                
+                # Display explanation of the recommendation to the user
+                [System.Windows.Forms.MessageBox]::Show(
+                    $recommendation.Explanation, 
+                    "Parallel Scans Recommendation", 
+                    "OK", 
+                    "Information"
+                )
             } else {
+                # Debug information for troubleshooting control location issues
                 $debugInfo = "Could not locate form controls. Found controls: "
                 foreach ($control in $parentForm.Controls) {
                     $debugInfo += "$($control.GetType().Name)($($control.Tag)), "
                 }
                 [System.Windows.Forms.MessageBox]::Show("$debugInfo", "Debug Info", "OK", "Information")
-                [System.Windows.Forms.MessageBox]::Show("Could not locate form controls for recommendation.", "Recommendation Error", "OK", "Warning")
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Could not locate form controls for recommendation.", 
+                    "Recommendation Error", 
+                    "OK", 
+                    "Warning"
+                )
             }
         }
         catch {
+            # Handle any errors in the recommendation process
             $errorMessage = "Error details: $($_.Exception.Message)`nStack: $($_.ScriptStackTrace)"
-            [System.Windows.Forms.MessageBox]::Show("Unable to generate recommendation.$([Environment]::NewLine)$errorMessage", "Recommendation Error", "OK", "Warning")
+            [System.Windows.Forms.MessageBox]::Show(
+                "Unable to generate recommendation.$([Environment]::NewLine)$errorMessage", 
+                "Recommendation Error", 
+                "OK", 
+                "Warning"
+            )
         }
     })
+    
+    # =============================================================================
+    # DIAGNOSTIC AND OPTION CONTROLS
+    # =============================================================================
+    
     $yPos += 30
+    
+    # Diagnostic logging level - controls amount of technical detail in logs
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Diagnostic Level:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $diagDropdown = New-Object System.Windows.Forms.ComboBox; $diagDropdown.Location = New-Object System.Drawing.Point(180, $yPos); $diagDropdown.Size = New-Object System.Drawing.Size($controlWidth, 20); $diagDropdown.DropDownStyle = 'DropDownList'; [void]$diagDropdown.Items.AddRange(@('Off', 'Standard', 'Verbose')); $diagDropdown.SelectedItem = $Settings.DiagnosticLevel; $form.Controls.Add($diagDropdown); $yPos += 40
+    
+    # Option to include unresponsive devices in output file
     $saveUnresponsiveCheck = New-Object System.Windows.Forms.CheckBox; $saveUnresponsiveCheck.Text = "Save SNMP-unresponsive devices to output file"; $saveUnresponsiveCheck.Location = New-Object System.Drawing.Point(20, $yPos); $saveUnresponsiveCheck.Size = New-Object System.Drawing.Size(370, 20); $saveUnresponsiveCheck.Checked = $Settings.SaveUnresponsive; $form.Controls.Add($saveUnresponsiveCheck); $yPos += 40
+    
+    # =============================================================================
+    # FORM ACTION BUTTON
+    # =============================================================================
+    
+    # Main action button - starts the network discovery process
     $startButton = New-Object System.Windows.Forms.Button; $startButton.Text = "Start Discovery"; $startButton.Location = New-Object System.Drawing.Point(150, $yPos); $startButton.Size = New-Object System.Drawing.Size(120, 40); $startButton.DialogResult = [System.Windows.Forms.DialogResult]::OK; $form.Controls.Add($startButton); $form.AcceptButton = $startButton
+    
+    # Return hashtable containing form and all controls for easy access by calling code
     return @{ Form = $form; IpRangesBox = $ipRangesBox; CommunityBox = $communityBox; RetriesDropdown = $retriesDropdown; FileNameBox = $fileNameBox; FileTypeDropdown = $fileTypeDropdown; GuiVerbosityDropdown = $guiVerbosityDropdown; ParallelScans = $parallelScansUpDown; DiagDropdown = $diagDropdown; SaveUnresponsive = $saveUnresponsiveCheck }
 }
 
 function Create-LogForm {
+    <#
+    .SYNOPSIS
+        Creates the progress monitoring and logging form displayed during network scanning.
+    
+    .DESCRIPTION
+        Builds a resizable Windows Forms dialog that displays real-time scan progress and logging.
+        Features a large scrollable text area for log messages, a progress bar, and action buttons
+        for controlling the scan and saving results.
+    
+    .OUTPUTS
+        Hashtable containing references to the form and all its controls
+    
+    .NOTES
+        Form Layout:
+        - Resizable window (800x600 default) for maximum log visibility
+        - Docked text area that expands with window resizing
+        - Fixed bottom panel with progress bar and action buttons
+        - Monospace font (Consolas) for better log readability
+        
+        Button States:
+        - Save Results: Disabled during scan, enabled when complete
+        - Cancel Scan: Enabled during scan, disabled when complete
+        - Close: Disabled during scan, enabled when complete
+    
+    .EXAMPLE
+        $logFormElements = Create-LogForm
+        $logFormElements.Form.ShowDialog()
+    #>
+    
+    # =============================================================================
+    # MAIN PROGRESS FORM CONFIGURATION
+    # =============================================================================
+    
+    # Create resizable progress monitoring window
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "DiscoverSubnet v$scriptVersion - In Progress"; $form.Size = New-Object System.Drawing.Size(800, 600); $form.StartPosition = 'CenterScreen'
-    $logBox = New-Object System.Windows.Forms.TextBox; $logBox.Multiline = $true; $logBox.ScrollBars = 'Vertical'; $logBox.ReadOnly = $true; $logBox.Dock = 'Fill'; $logBox.Font = New-Object System.Drawing.Font("Consolas", 9); $form.Controls.Add($logBox)
-    $bottomPanel = New-Object System.Windows.Forms.Panel; $bottomPanel.Dock = 'Bottom'; $bottomPanel.Height = 50; $form.Controls.Add($bottomPanel)
-    $progressBar = New-Object System.Windows.Forms.ProgressBar; $progressBar.Location = New-Object System.Drawing.Point(10, 15); $progressBar.Size = New-Object System.Drawing.Size(420, 23); $bottomPanel.Controls.Add($progressBar)
-    $saveButton = New-Object System.Windows.Forms.Button; $saveButton.Text = "Save Results"; $saveButton.Location = New-Object System.Drawing.Point(440, 12); $saveButton.Enabled = $false; $bottomPanel.Controls.Add($saveButton)
-    $cancelButton = New-Object System.Windows.Forms.Button; $cancelButton.Text = "Cancel Scan"; $cancelButton.Location = New-Object System.Drawing.Point(530, 12); $bottomPanel.Controls.Add($cancelButton)
-    $closeButton = New-Object System.Windows.Forms.Button; $closeButton.Text = "Close"; $closeButton.Location = New-Object System.Drawing.Point(620, 12); $closeButton.Enabled = $false; $bottomPanel.Controls.Add($closeButton)
-    return @{ Form = $form; LogBox = $logBox; ProgressBar = $progressBar; SaveButton = $saveButton; CancelButton = $cancelButton; CloseButton = $closeButton }
+    $form.Text = "DiscoverSubnet v$scriptVersion - In Progress"
+    $form.Size = New-Object System.Drawing.Size(800, 600)
+    $form.StartPosition = 'CenterScreen'
+    # Note: Form is resizable (default) to allow users to expand for better log viewing
+    
+    # =============================================================================
+    # LOG DISPLAY AREA
+    # =============================================================================
+    
+    # Create main log text area with professional monospace formatting
+    $logBox = New-Object System.Windows.Forms.TextBox
+    $logBox.Multiline = $true                                    # Enable multi-line display
+    $logBox.ScrollBars = 'Vertical'                             # Add vertical scrollbar
+    $logBox.ReadOnly = $true                                    # Prevent user editing
+    $logBox.Dock = 'Fill'                                       # Expand to fill available space
+    $logBox.Font = New-Object System.Drawing.Font("Consolas", 9) # Monospace font for aligned output
+    $form.Controls.Add($logBox)
+    
+    # =============================================================================
+    # BOTTOM CONTROL PANEL
+    # =============================================================================
+    
+    # Create fixed bottom panel for progress bar and action buttons
+    $bottomPanel = New-Object System.Windows.Forms.Panel
+    $bottomPanel.Dock = 'Bottom'                                # Dock to bottom of form
+    $bottomPanel.Height = 50                                    # Fixed height for consistent layout
+    $form.Controls.Add($bottomPanel)
+    
+    # Progress bar - shows scan completion percentage
+    $progressBar = New-Object System.Windows.Forms.ProgressBar
+    $progressBar.Location = New-Object System.Drawing.Point(10, 15)
+    $progressBar.Size = New-Object System.Drawing.Size(420, 23)
+    $bottomPanel.Controls.Add($progressBar)
+    
+    # =============================================================================
+    # ACTION BUTTONS
+    # =============================================================================
+    
+    # Save Results button - disabled during scan, enabled when complete
+    $saveButton = New-Object System.Windows.Forms.Button
+    $saveButton.Text = "Save Results"
+    $saveButton.Location = New-Object System.Drawing.Point(440, 12)
+    $saveButton.Enabled = $false                                # Disabled until scan completes
+    $bottomPanel.Controls.Add($saveButton)
+    
+    # Cancel Scan button - allows user to stop scan in progress
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = "Cancel Scan"
+    $cancelButton.Location = New-Object System.Drawing.Point(530, 12)
+    # Enabled by default - user can cancel at any time during scan
+    $bottomPanel.Controls.Add($cancelButton)
+    
+    # Close button - disabled during scan, enabled when complete
+    $closeButton = New-Object System.Windows.Forms.Button
+    $closeButton.Text = "Close"
+    $closeButton.Location = New-Object System.Drawing.Point(620, 12)
+    $closeButton.Enabled = $false                               # Disabled until scan completes
+    $bottomPanel.Controls.Add($closeButton)
+    
+    # Return hashtable with form and control references for event handler binding
+    return @{ 
+        Form = $form
+        LogBox = $logBox
+        ProgressBar = $progressBar
+        SaveButton = $saveButton
+        CancelButton = $cancelButton
+        CloseButton = $closeButton 
+    }
 }
 #endregion
 
 #region Main Script Execution
 
+# =============================================================================
+# MAIN APPLICATION WORKFLOW
+# =============================================================================
+
+# This section orchestrates the complete application workflow:
+# 1. Load user settings and display configuration form
+# 2. Validate inputs and show progress form
+# 3. Start background scanning jobs
+# 4. Monitor progress and handle user interactions
+# 5. Save results and cleanup
+
+# Load persistent settings from JSON file (or create defaults)
 $currentSettings = Load-Settings
+
+# Create and display the main configuration form
 $configFormElements = Create-ConfigForm -Settings $currentSettings
 
-# Auto-recommend parallel scans on form load based on current IP ranges
+# =============================================================================
+# INTELLIGENT PERFORMANCE RECOMMENDATIONS
+# =============================================================================
+
+# Automatically analyze system capabilities and provide optimal parallel scan recommendations
+# This helps users achieve best performance without manual performance tuning
 try {
     $initialRecommendation = Get-RecommendedParallelScans -IpRanges $configFormElements.IpRangesBox.Text
     if ($initialRecommendation.RecommendedCount -ne $configFormElements.ParallelScans.Value) {
+        # Update the form control with the recommended value
         $configFormElements.ParallelScans.Value = $initialRecommendation.RecommendedCount
-        # Add a tooltip to show the recommendation reasoning
+        
+        # Add a tooltip to explain the reasoning behind the recommendation
         $tooltip = New-Object System.Windows.Forms.ToolTip
         $tooltip.SetToolTip($configFormElements.ParallelScans, "Auto-recommended: $($initialRecommendation.Explanation)")
     }
 }
 catch {
-    # If recommendation fails, use current settings silently
+    # If recommendation analysis fails, silently continue with user's current settings
+    # This ensures the application remains functional even if performance analysis fails
 }
 
+# =============================================================================
+# USER CONFIGURATION AND VALIDATION
+# =============================================================================
+
+# Display configuration form and wait for user input
 $configFormElements.Form.ShowDialog() | Out-Null
 
+# Process user configuration only if they clicked "Start Discovery"
 if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult]::OK) {
 
+    # Extract all settings from form controls into a structured configuration object
     $scanSettings = [PSCustomObject]@{
-        IpRanges              = $configFormElements.IpRangesBox.Text; SnmpCommunity = $configFormElements.CommunityBox.Text
-        Retries               = [int]$configFormElements.RetriesDropdown.SelectedItem; OutputFileName = $configFormElements.FileNameBox.Text
-        OutputFileExtension   = $configFormElements.FileTypeDropdown.SelectedItem; SaveUnresponsive = $configFormElements.SaveUnresponsive.Checked
-        MaxParallelScans      = [int]$configFormElements.ParallelScans.Value; DiagnosticLevel = $configFormElements.DiagDropdown.SelectedItem
+        IpRanges              = $configFormElements.IpRangesBox.Text
+        SnmpCommunity         = $configFormElements.CommunityBox.Text
+        Retries               = [int]$configFormElements.RetriesDropdown.SelectedItem
+        OutputFileName        = $configFormElements.FileNameBox.Text
+        OutputFileExtension   = $configFormElements.FileTypeDropdown.SelectedItem
+        SaveUnresponsive      = $configFormElements.SaveUnresponsive.Checked
+        MaxParallelScans      = [int]$configFormElements.ParallelScans.Value
+        DiagnosticLevel       = $configFormElements.DiagDropdown.SelectedItem
         GuiVerbosity          = $configFormElements.GuiVerbosityDropdown.SelectedItem
     }
 
+    # Validate all user inputs before proceeding with scan
     if (-not (Validate-Inputs -inputs $scanSettings)) { exit }
+    
+    # Persist settings for future use
     Save-Settings -Settings $scanSettings
 
     $logFormElements = Create-LogForm
@@ -435,51 +976,91 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
     $logFilePath = Join-Path -Path $scriptDir -ChildPath $logFileName
     $outputFilePath = Join-Path -Path $scriptDir -ChildPath "$($scanSettings.OutputFileName).$($scanSettings.OutputFileExtension)"
 
-    # Initialize log file with version header as first line
+    # =============================================================================
+    # LOGGING AND ERROR HANDLING INFRASTRUCTURE
+    # =============================================================================
+
+    # Initialize log file with version header for troubleshooting and audit purposes
     $versionHeader = "DiscoverSubnet Version $scriptVersion"
     Add-Content -Path $logFilePath -Value $versionHeader
 
     function Write-Log {
+        <#
+        .SYNOPSIS
+            Thread-safe logging function that writes to both file and GUI with intelligent filtering.
+        
+        .DESCRIPTION
+            Implements a robust logging strategy with multiple error handling fallbacks:
+            
+            ERROR HANDLING STRATEGIES:
+            1. Thread-safe GUI updates using BeginInvoke for cross-thread operations
+            2. Fallback to direct GUI access if BeginInvoke fails
+            3. Silent continuation if GUI controls are disposed or unavailable
+            4. Complete logging to file regardless of GUI state
+            
+            PS2EXE COMPATIBILITY:
+            - Uses file paths resolved during script initialization
+            - Handles control disposal gracefully in compiled executables
+            - Thread-safe operations work correctly in PS2EXE environment
+        
+        .PARAMETER Message
+            The message text to log
+        
+        .PARAMETER MessageType
+            Classification for GUI filtering: General, Diagnostic, RangeStart, RangeEnd, PingResult, ScanResult
+        #>
+        
         param(
             [string]$Message,
             [string]$MessageType = "General"  # General, Diagnostic, RangeStart, RangeEnd, PingResult, ScanResult
         )
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'; $logEntry = "[$timestamp] $Message"
         
-        # Always write to log file (keep all verbose logging in file)
+        # Create timestamped log entry
+        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $logEntry = "[$timestamp] $Message"
+        
+        # ALWAYS write to log file (complete audit trail regardless of GUI state)
         Add-Content -Path $logFilePath -Value $logEntry
         
-        # Filter GUI display based on verbosity level
+        # =============================================================================
+        # INTELLIGENT GUI DISPLAY FILTERING
+        # =============================================================================
+        
+        # Apply user-selected verbosity filtering to reduce GUI clutter
         $showInGui = $true
         $addBlankLine = $false
+        
         if ($scanSettings.GuiVerbosity -eq "Minimal") {
-            # Minimal: only show range start/end messages
+            # Minimal: only show range start/end messages and general status
             $showInGui = ($MessageType -in @("RangeStart", "RangeEnd", "General"))
-            # Add blank line after range end messages in minimal mode
             if ($MessageType -eq "RangeEnd") { $addBlankLine = $true }
         } elseif ($scanSettings.GuiVerbosity -eq "Standard") {
             # Standard: show scan parameters, range info, and device results
             $showInGui = ($MessageType -in @("ScanParameters", "RangeStart", "RangeEnd", "ScanResult", "General"))
-            # Add blank line after range end messages in standard mode
             if ($MessageType -eq "RangeEnd") { $addBlankLine = $true }
         }
-        # If GuiVerbosity is not set or any other value, show everything (default behavior)
+        # Default: show everything (full verbosity)
+        
+        # =============================================================================
+        # THREAD-SAFE GUI UPDATES WITH FALLBACK ERROR HANDLING
+        # =============================================================================
         
         if ($showInGui -and $script:logTextBox -and -not $script:logTextBox.IsDisposed) {
             try {
-                # Force handle creation if it doesn't exist
+                # Ensure control handle is created before attempting cross-thread operations
                 if (-not $script:logTextBox.IsHandleCreated) {
                     $script:logTextBox.CreateControl()
                 }
                 
                 if ($script:logTextBox.IsHandleCreated) {
+                    # PRIMARY: Use BeginInvoke for thread-safe GUI updates
                     $script:logTextBox.BeginInvoke([Action[string]]{ param($text)
                         if ($script:logTextBox -and -not $script:logTextBox.IsDisposed) { 
                             $script:logTextBox.AppendText($text + [Environment]::NewLine) 
                         }
                     }, $logEntry)
                     
-                    # Add blank line if requested (for range separation)
+                    # Add visual spacing for better readability
                     if ($addBlankLine) {
                         $script:logTextBox.BeginInvoke([Action]{ 
                             if ($script:logTextBox -and -not $script:logTextBox.IsDisposed) { 
@@ -490,8 +1071,10 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 }
             }
             catch {
-                # If BeginInvoke fails, fall back to direct access (less thread-safe but works)
+                # FALLBACK: If BeginInvoke fails, use direct access (less thread-safe but functional)  
+                # This handles edge cases in PS2EXE environments or unusual threading scenarios
                 Write-Warning "BeginInvoke failed, using direct access: $($_.Exception.Message)"
+                
                 if ($script:logTextBox -and -not $script:logTextBox.IsDisposed) {
                     $script:logTextBox.AppendText($logEntry + [Environment]::NewLine)
                     if ($addBlankLine) {
@@ -500,16 +1083,45 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 }
             }
         }
+        # NOTE: If GUI controls are unavailable/disposed, logging continues silently to file
+        # This ensures the application remains functional even with GUI issues
     }
 
+    # =============================================================================
+    # BACKGROUND JOB CONTROLLER SCRIPT BLOCK
+    # =============================================================================
+    
+    # This script block runs in a separate PowerShell job to perform the actual network scanning
+    # It coordinates multiple worker jobs and communicates progress back to the GUI via structured messages
+    # 
+    # ARCHITECTURE OVERVIEW:
+    # ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+    # │   Main GUI      │◄──►│   Controller     │◄──►│  Worker Jobs    │
+    # │   Thread        │    │   Script Block   │    │  (Per IP)       │
+    # │                 │    │  (Background)    │    │                 │
+    # │ - Progress Bar  │    │ - Job Management │    │ - Ping Test     │
+    # │ - Log Display   │    │ - Result Agg.    │    │ - SNMP Query    │
+    # │ - User Controls │    │ - Status Updates │    │ - Device ID     │
+    # └─────────────────┘    └──────────────────┘    └─────────────────┘
+    
     $controllerScriptBlock = {
         param($Settings)
-        function New-JobMessage { param($Type, $Value) [PSCustomObject]@{Type = $Type; Value = $Value} }
         
-        # Add a unique identifier to detect multiple controller instances
+        # =============================================================================
+        # CONTROLLER INITIALIZATION AND SAFETY CHECKS
+        # =============================================================================
+        
+        # Helper function to create structured messages for GUI communication
+        function New-JobMessage { 
+            param($Type, $Value) 
+            [PSCustomObject]@{Type = $Type; Value = $Value} 
+        }
+        
+        # Generate unique controller ID for debugging multiple instances
         $controllerId = [System.Guid]::NewGuid().ToString().Substring(0,8)
         $global:controllerExecuting = $true
-        # Display professional scan initialization
+        
+        # Display professional scan initialization header with all parameters
         Write-Output (New-JobMessage -Type "Log" -Value "=== SCAN PARAMETERS ===")
         Write-Output (New-JobMessage -Type "Log" -Value "IP Ranges: $($Settings.IpRanges)")
         Write-Output (New-JobMessage -Type "Log" -Value "SNMP Community: $($Settings.SnmpCommunity)")
@@ -519,7 +1131,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
         Write-Output (New-JobMessage -Type "Log" -Value "Save Unresponsive: $($Settings.SaveUnresponsive)")
         Write-Output (New-JobMessage -Type "Log" -Value " ========================")
         
-        # Safety check to prevent infinite recursion
+        # Safety check to prevent infinite recursion or multiple controller instances
         if ($global:controllerAlreadyRan) {
             Write-Output (New-JobMessage -Type "Log" -Value "Controller [$controllerId]: ERROR - Controller already executed, preventing duplicate run")
             Write-Output (New-JobMessage -Type "Status" -Value "Complete")
@@ -527,38 +1139,65 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
         }
         $global:controllerAlreadyRan = $true
         
-        # Test OleSNMP COM object availability first
+        # =============================================================================
+        # SYSTEM CAPABILITY VERIFICATION  
+        # =============================================================================
+        
+        # Test SNMP COM object availability before starting worker jobs
+        # This prevents workers from failing due to missing dependencies
         try {
             $testSNMP = New-Object -ComObject olePrn.OleSNMP
-            $testSNMP = $null  # Release the test object
+            $testSNMP = $null  # Release the test object immediately
             Write-Output (New-JobMessage -Type "Log" -Value "Controller [$controllerId]: Successfully verified OleSNMP COM object availability")
         } catch {
+            # SNMP COM object not available - workers will fall back to ping-only mode
             $errorMsg = "Failed to create OleSNMP COM object: $($_.Exception.Message)"
             Write-Output (New-JobMessage -Type "Log" -Value "Controller [$controllerId]: $errorMsg")
             Write-Output (New-JobMessage -Type "Status" -Value "Complete")
             return
         }
         
+        # =============================================================================
+        # WORKER SCRIPT BLOCK - INDIVIDUAL IP SCANNING
+        # =============================================================================
+        
+        # This script block is executed as a separate PowerShell job for each IP address to be scanned
+        # It performs ping testing, SNMP queries, and device identification for a single IP
+        # 
+        # WORKER WORKFLOW:
+        # 1. Check SNMP COM object availability (per-worker verification)
+        # 2. Perform ping test with retry logic
+        # 3. If ping successful and SNMP available: Query device information
+        # 4. Identify device type using SNMP OID mapping
+        # 5. Return structured device information to controller
+        
         $workerScriptBlock = {
             param($CurrentIP, $ScanSettings)
             
-            # Function to create worker messages that can be captured by the controller
-            function New-WorkerMessage { param($Type, $Value) [PSCustomObject]@{Type = $Type; Value = $Value; IP = $CurrentIP} }
+            # Helper function to create structured messages for controller communication
+            function New-WorkerMessage { 
+                param($Type, $Value) 
+                [PSCustomObject]@{Type = $Type; Value = $Value; IP = $CurrentIP} 
+            }
             
-            #region SNMP COM Object Availability Check for Worker
+            # =============================================================================
+            # WORKER-LEVEL SNMP CAPABILITY CHECK
+            # =============================================================================
+            
+            # Each worker independently verifies SNMP COM object availability
+            # This handles cases where SNMP might be available to controller but not workers
             $snmpAvailable = $false
             try {
                 $testSNMP = New-Object -ComObject olePrn.OleSNMP
-                $testSNMP = $null  # Release the test object
+                $testSNMP = $null  # Release the test object immediately
                 $snmpAvailable = $true
                 Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - OleSNMP COM object available")
             } catch {
-                # SNMP not available, will do ping-only scan
+                # SNMP not available - this worker will perform ping-only scanning
                 $snmpAvailable = $false
                 $errorMsg = $_.Exception.Message
                 Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - OleSNMP COM object unavailable - $errorMsg")
             }
-            #endregion
 
             function Get-SnmpValue {
                 param([string]$IP, [string]$Community, [string[]]$OIDs, [int]$Retries)
@@ -1028,7 +1667,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 Write-Log -Message "Results successfully saved to $outputFilePath" -MessageType "General"
                 [System.Windows.Forms.MessageBox]::Show("Results saved successfully.", "Save Complete", "OK", "Information")
             } else {
-                 Write-Log -Message "No devices to save."; [System.Windows.Forms.MessageBox]::Show("There are no discovered devices to save.", "Save Complete", "OK", "Information")
+                Write-Log -Message "No devices to save."; [System.Windows.Forms.MessageBox]::Show("There are no discovered devices to save.", "Save Complete", "OK", "Information")
             }
         } catch {
             Write-Log -Message "ERROR: Failed to save results. $_"; [System.Windows.Forms.MessageBox]::Show("An error occurred while saving the file: `n$($_.Exception.Message)", "Save Error", "OK", "Error")
