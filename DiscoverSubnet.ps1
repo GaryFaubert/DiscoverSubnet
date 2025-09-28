@@ -60,7 +60,7 @@
     - Memory usage scales with parallel job count (typically 50-200MB)
 
 .VERSION
-    2.8
+    2.9
 
 .AUTHOR
     Gary Faubert - Assisted by Gemini and Copilot
@@ -69,6 +69,7 @@
     2025-09-26
 
 .CHANGELOG
+    v2.9 - Updated subnet scanning to include gateway addresses (.1) for more comprehensive network discovery
     v2.8 - Enhanced PS2EXE compatibility, improved error handling for null paths
     v2.7 - Added system performance analysis and automatic parallel scan recommendations
     v2.6 - Improved GUI verbosity controls and professional logging format
@@ -82,7 +83,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.8"
+$scriptVersion = "2.9"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -242,7 +243,7 @@ function Parse-IpRanges {
         Converts user-friendly IP range notation into a list of individual IP addresses.
         Supports multiple formats:
         - Single IP: "192.168.1.5"
-        - Subnet notation: "192.168.1.0" (expands to .2-.254)
+        - Subnet notation: "192.168.1.0" (expands to .1-.254)
         - Range notation: "192.168.1.10-20" (expands to .10-.20)
         - Mixed formats: "192.168.1.5, 10.0.0.0, 172.16.1.100-110"
     
@@ -253,13 +254,13 @@ function Parse-IpRanges {
         System.Collections.Generic.List[string] containing individual IP addresses
     
     .NOTES
-        Subnet notation (.0) automatically excludes .1 (gateway) and .255 (broadcast)
+        Subnet notation (.0) automatically excludes .255 (broadcast) but includes .1 (gateway)
         Range notation is inclusive of both start and end addresses
         Invalid formats are silently ignored (validation handled elsewhere)
     
     .EXAMPLE
         Parse-IpRanges -IpRangeString "192.168.1.0, 10.0.0.5-10"
-        # Returns: 192.168.1.2, 192.168.1.3, ..., 192.168.1.254, 10.0.0.5, 10.0.0.6, ..., 10.0.0.10
+        # Returns: 192.168.1.1, 192.168.1.2, ..., 192.168.1.254, 10.0.0.5, 10.0.0.6, ..., 10.0.0.10
     #>
     
     param([Parameter(Mandatory = $true)][string]$IpRangeString)
@@ -272,10 +273,10 @@ function Parse-IpRanges {
     
     foreach ($range in $ranges) {
         if ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0$') {
-            # Subnet notation: "192.168.1.0" expands to 192.168.1.2 through 192.168.1.254
-            # Excludes .1 (typically gateway) and .255 (broadcast address)
+            # Subnet notation: "192.168.1.0" expands to 192.168.1.1 through 192.168.1.254
+            # Includes .1 (gateway) but excludes .255 (broadcast address)
             $base = $matches[1]
-            2..254 | ForEach-Object { [void]$allIps.Add("$base.$_") }
+            1..254 | ForEach-Object { [void]$allIps.Add("$base.$_") }
         }
         elseif ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3})-(\d{1,3})$') {
             # Range notation: "192.168.1.10-20" expands to all IPs in the range
@@ -300,7 +301,7 @@ function Validate-Inputs {
     .DESCRIPTION
         Performs comprehensive validation of user-provided settings including:
         - IP range format validation (supports single IPs, ranges, and subnets)
-        - Network address boundary checking (excludes broadcast/gateway addresses)
+        - Network address boundary checking (excludes broadcast addresses)
         - SNMP community string format validation
         - Output filename character validation
         
@@ -1368,7 +1369,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             param([string]$IpRangeString)
             $allIps = New-Object System.Collections.Generic.List[string]; $ranges = $IpRangeString -split ',' | ForEach-Object { $_.Trim() }
             foreach ($range in $ranges) {
-                if ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0$') { $base = $matches[1]; 2..254 | ForEach-Object { [void]$allIps.Add("$base.$_") } }
+                if ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0$') { $base = $matches[1]; 1..254 | ForEach-Object { [void]$allIps.Add("$base.$_") } }
                 elseif ($range -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3})-(\d{1,3})$') { $base = $matches[1]; ([int]$matches[2])..([int]$matches[3]) | ForEach-Object { [void]$allIps.Add("$base.$_") } }
                 elseif ($range -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') { [void]$allIps.Add($range) }
             }
