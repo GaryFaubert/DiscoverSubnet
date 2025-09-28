@@ -118,7 +118,7 @@ The application supports multiple IP range formats for flexible network scanning
 
 ### Valid IP Range Rules
 - First three octets must be between 1-254
-- Fourth octet must be between 2-254 for specific IPs
+- Fourth octet must be between 1-254 for specific IPs
 - Subnet notation (.0) automatically excludes network and broadcast addresses
 - Ranges must have start value less than end value
 
@@ -275,6 +275,6 @@ The application creates files in the same directory as the executable:
 
 For technical support or feature requests, please refer to the application's source repository or contact your system administrator.
 
-**Version**: 2.8  
-**Last Updated**: September 26, 2025  
+**Version**: 2.9  
+**Last Updated**: September 28, 2025  
 **Author**: Gary Faubert
