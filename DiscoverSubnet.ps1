@@ -59,9 +59,6 @@
     - Typical scan speed: 2-4 seconds per IP address depending on responsiveness
     - Memory usage scales with parallel job count (typically 50-200MB)
 
-.VERSION
-    2.10
-
 .AUTHOR
     Gary Faubert - Assisted by Gemini and Copilot
 
@@ -69,6 +66,13 @@
     2025-09-26
 
 .CHANGELOG
+    v2.17 - Improved GUI display: changed DISCOVERED DEVICES REPORT to white, removed SCAN COMPLETION SUMMARY from GUI, moved total count under DISCOVERED DEVICES REPORT
+    v2.16 - Fixed IP range validation to allow scanning of .1 addresses (gateways); changed minimum range from 2 to 1
+    v2.15 - Fixed GUI verbosity filtering to ensure summary sections always appear in discovery window
+    v2.14 - Fixed missing summary sections; ensured discovered devices report and scan completion summary always appear
+    v2.13 - Added visual section separators with distinct colors: dark cyan for scan completion, dark green for results report
+    v2.12 - Suppressed unreachable IP messages during scan to reduce noise; show gray summary at end instead
+    v2.11 - Added color-coded logging in discovery window to distinguish message types (errors=red, success=green, warnings=yellow, etc.)
     v2.10 - Added support for SWCNT9-100G device type detection in MD8000 series hardware
     v2.9 - Updated subnet scanning to include gateway addresses (.1) for more comprehensive network discovery
     v2.8 - Enhanced PS2EXE compatibility, improved error handling for null paths
@@ -84,26 +88,23 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.10"
+$scriptVersion = "2.17"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
+
 if ($PSScriptRoot) {
     # Standard PowerShell execution: $PSScriptRoot is reliably populated when running as .ps1 file
     $scriptDir = $PSScriptRoot
 }
-else {
+elseif ($null -ne $MyInvocation.MyCommand.Path -and $MyInvocation.MyCommand.Path -ne "") {
     # PS2EXE compilation fallback: Handle cases where $PSScriptRoot is not available
-    # $MyInvocation.MyCommand.Path should contain the full path to the .exe file
-    if ($null -ne $MyInvocation.MyCommand.Path -and $MyInvocation.MyCommand.Path -ne "") {
-        # Extract directory from the full executable path
-        $scriptDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
-    } else {
-        # Final fallback: Use current working directory if all path variables are null
-        # This prevents the "Cannot bind argument to parameter 'Path' because it is null" errors
-        $scriptDir = Get-Location
-        Write-Warning "Unable to determine script location - using current directory: $scriptDir"
-    }
+    $scriptDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+}
+else {
+    # Simple fallback for PS2EXE double-click: Use current directory without warning
+    # This is perfectly acceptable for most use cases
+    $scriptDir = Get-Location
 }
 
 # =============================================================================
@@ -112,6 +113,9 @@ else {
 
 # Path to the persistent settings file (JSON format) stored alongside the script/executable
 $settingsFilePath = Join-Path -Path $scriptDir -ChildPath "DiscoverSubnet.settings.json"
+
+# Global variables for tracking scan progress and results
+$script:unreachableIPs = @()  # Track unreachable IPs to show summary at end instead of cluttering log
 
 # Default configuration structure - used when no settings file exists or parsing fails
 # These values represent sensible defaults for most network environments
@@ -374,9 +378,9 @@ function Validate-Inputs {
         # Validate fourth octet (different rules for ranges vs single IPs)
         if ($parts[3] -match '(\d+)-(\d+)') {
             # Range format: validate start and end values
-            if ([int]$matches[1] -lt 2 -or [int]$matches[2] -gt 254 -or [int]$matches[1] -ge [int]$matches[2]) {
+            if ([int]$matches[1] -lt 1 -or [int]$matches[2] -gt 254 -or [int]$matches[1] -ge [int]$matches[2]) {
                 [System.Windows.Forms.MessageBox]::Show(
-                    "Invalid range in '$range'. Range must be between 2 and 254, and the start must be less than the end.", 
+                    "Invalid range in '$range'. Range must be between 1 and 254, and the start must be less than the end.", 
                     "Validation Error", 
                     "OK", 
                     "Warning"
@@ -386,9 +390,9 @@ function Validate-Inputs {
         }
         elseif ($parts[3] -ne '0') {
             # Single IP: validate host portion
-            if ([int]$parts[3] -lt 2 -or [int]$parts[3] -gt 254) {
+            if ([int]$parts[3] -lt 1 -or [int]$parts[3] -gt 254) {
                 [System.Windows.Forms.MessageBox]::Show(
-                    "Invalid host value in '$range'. The fourth octet must be between 2 and 254 (or 0 for a full range).", 
+                    "Invalid host value in '$range'. The fourth octet must be between 1 and 254 (or 0 for a full range).", 
                     "Validation Error", 
                     "OK", 
                     "Warning"
@@ -837,13 +841,15 @@ function Create-LogForm {
     # LOG DISPLAY AREA
     # =============================================================================
     
-    # Create main log text area with professional monospace formatting
-    $logBox = New-Object System.Windows.Forms.TextBox
+    # Create main log text area with professional monospace formatting and color support
+    $logBox = New-Object System.Windows.Forms.RichTextBox  # Changed from TextBox to RichTextBox for color support
     $logBox.Multiline = $true                                    # Enable multi-line display
     $logBox.ScrollBars = 'Vertical'                             # Add vertical scrollbar
     $logBox.ReadOnly = $true                                    # Prevent user editing
     $logBox.Dock = 'Fill'                                       # Expand to fill available space
     $logBox.Font = New-Object System.Drawing.Font("Consolas", 9) # Monospace font for aligned output
+    $logBox.BackColor = [System.Drawing.Color]::Black           # Dark background for better contrast
+    $logBox.ForeColor = [System.Drawing.Color]::White           # Default white text
     $form.Controls.Add($logBox)
     
     # =============================================================================
@@ -974,6 +980,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
     $cancelButton = $logFormElements.CancelButton; $saveButton = $logFormElements.SaveButton; $closeButton = $logFormElements.CloseButton
 
     $global:scanJob = $null; $global:allDiscoveredDevices = New-Object System.Collections.Generic.List[PSCustomObject]
+    $script:unreachableIPs = @()  # Reset unreachable IPs tracking for new scan
     $logFileName = "DiscoverSubnet-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
     $logFilePath = Join-Path -Path $scriptDir -ChildPath $logFileName
     $outputFilePath = Join-Path -Path $scriptDir -ChildPath "$($scanSettings.OutputFileName).$($scanSettings.OutputFileExtension)"
@@ -1033,18 +1040,18 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
         $addBlankLine = $false
         
         if ($scanSettings.GuiVerbosity -eq "Minimal") {
-            # Minimal: only show range start/end messages and general status
-            $showInGui = ($MessageType -in @("RangeStart", "RangeEnd", "General"))
+            # Minimal: only show range start/end messages, general status, and discovered devices report
+            $showInGui = ($MessageType -in @("RangeStart", "RangeEnd", "General", "ResultsSeparator", "DeviceResult", "Success"))
             if ($MessageType -eq "RangeEnd") { $addBlankLine = $true }
         } elseif ($scanSettings.GuiVerbosity -eq "Standard") {
-            # Standard: show scan parameters, range info, and device results
-            $showInGui = ($MessageType -in @("ScanParameters", "RangeStart", "RangeEnd", "ScanResult", "General"))
+            # Standard: show scan parameters, range info, device results, and discovered devices report
+            $showInGui = ($MessageType -in @("ScanParameters", "RangeStart", "RangeEnd", "ScanResult", "General", "ResultsSeparator", "DeviceResult", "Success"))
             if ($MessageType -eq "RangeEnd") { $addBlankLine = $true }
         }
         # Default: show everything (full verbosity)
         
         # =============================================================================
-        # THREAD-SAFE GUI UPDATES WITH FALLBACK ERROR HANDLING
+        # THREAD-SAFE GUI UPDATES WITH COLOR CODING AND FALLBACK ERROR HANDLING
         # =============================================================================
         
         if ($showInGui -and $script:logTextBox -and -not $script:logTextBox.IsDisposed) {
@@ -1055,12 +1062,37 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 }
                 
                 if ($script:logTextBox.IsHandleCreated) {
-                    # PRIMARY: Use BeginInvoke for thread-safe GUI updates
-                    $script:logTextBox.BeginInvoke([Action[string]]{ param($text)
+                    # PRIMARY: Use BeginInvoke for thread-safe GUI updates with color coding
+                    $script:logTextBox.BeginInvoke([Action[string,string]]{ param($text, $msgType)
                         if ($script:logTextBox -and -not $script:logTextBox.IsDisposed) { 
-                            $script:logTextBox.AppendText($text + [Environment]::NewLine) 
+                            # Determine color based on message type
+                            $textColor = switch ($msgType) {
+                                "General"           { [System.Drawing.Color]::White }         # Default white
+                                "RangeStart"        { [System.Drawing.Color]::Yellow }        # Yellow for range start
+                                "RangeEnd"          { [System.Drawing.Color]::Cyan }          # Cyan for range end  
+                                "ScanResult"        { [System.Drawing.Color]::LightGreen }    # Light green for successful scans
+                                "PingResult"        { [System.Drawing.Color]::LightBlue }     # Light blue for ping results
+                                "Diagnostic"        { [System.Drawing.Color]::Gray }          # Gray for diagnostic info
+                                "ScanParameters"    { [System.Drawing.Color]::Orange }        # Orange for scan parameters
+                                "UnreachableSummary"{ [System.Drawing.Color]::Gray }          # Gray for unreachable summary (less distraction)
+                                "SectionSeparator"  { [System.Drawing.Color]::DarkCyan }      # Dark cyan for section separators
+                                "ResultsSeparator"  { [System.Drawing.Color]::White }         # White for discovered devices report header
+                                "DeviceResult"      { [System.Drawing.Color]::LightGreen }    # Light green for discovered devices
+                                "Error"             { [System.Drawing.Color]::Red }           # Red for errors
+                                "Warning"           { [System.Drawing.Color]::Yellow }        # Yellow for warnings
+                                "Success"           { [System.Drawing.Color]::Green }         # Green for success messages
+                                default             { [System.Drawing.Color]::White }         # Default white
+                            }
+                            
+                            # Add colored text to RichTextBox
+                            $script:logTextBox.SelectionStart = $script:logTextBox.TextLength
+                            $script:logTextBox.SelectionLength = 0
+                            $script:logTextBox.SelectionColor = $textColor
+                            $script:logTextBox.AppendText($text + [Environment]::NewLine)
+                            $script:logTextBox.SelectionColor = $script:logTextBox.ForeColor  # Reset to default
+                            $script:logTextBox.ScrollToCaret()  # Auto-scroll to bottom
                         }
-                    }, $logEntry)
+                    }, $logEntry, $MessageType)
                     
                     # Add visual spacing for better readability
                     if ($addBlankLine) {
@@ -1078,6 +1110,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 Write-Warning "BeginInvoke failed, using direct access: $($_.Exception.Message)"
                 
                 if ($script:logTextBox -and -not $script:logTextBox.IsDisposed) {
+                    # Fallback to plain text without colors
                     $script:logTextBox.AppendText($logEntry + [Environment]::NewLine)
                     if ($addBlankLine) {
                         $script:logTextBox.AppendText([Environment]::NewLine)
@@ -1525,10 +1558,10 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     # Continue processing messages, don't stop here
                 }
                 if ($jobState -eq 'Failed') {
-                    Write-Log -Message "Job failed - checking for error details"
+                    Write-Log -Message "Job failed - checking for error details" -MessageType "Error"
                     $jobErrors = Receive-Job -Job $global:scanJob -ErrorAction SilentlyContinue
                     if ($jobErrors) {
-                        Write-Log -Message "Job error: $jobErrors"
+                        Write-Log -Message "Job error: $jobErrors" -MessageType "Error"
                     }
                     $guiTimer.Stop()
                     $cancelButton.Enabled = $false; $saveButton.Enabled = $true; $closeButton.Enabled = $true
@@ -1544,7 +1577,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 # This prevents the infinite loop of processing the same messages repeatedly
                 $messages = Receive-Job -Job $global:scanJob -Keep:$false
             } catch {
-                Write-Log -Message "Error accessing job: $($_.Exception.Message)"
+                Write-Log -Message "Error accessing job: $($_.Exception.Message)" -MessageType "Error"
                 $guiTimer.Stop()
                 $cancelButton.Enabled = $false; $saveButton.Enabled = $true; $closeButton.Enabled = $true
                 $global:scanJob = $null
@@ -1553,11 +1586,54 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             foreach ($msg in $messages) {
                 switch ($msg.Type) {
                     "Log" { 
-                        # Classify message type based on content
+                        # Check if this is an unreachable message and handle specially
+                        if ($msg.Value -match "^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+): Unreachable$") {
+                            # Track unreachable IP but don't display during scan to reduce noise
+                            $unreachableIP = $matches[1]
+                            $script:unreachableIPs += $unreachableIP
+                            # Skip displaying this message during scanning
+                            continue
+                        }
+                        
+                        # Classify message type based on content for all other messages
                         $messageType = "General"
                         if ($msg.Value -match "Starting scan.*range|Starting scan of.*IP addresses") { $messageType = "RangeStart" }
-                        elseif ($msg.Value -match "Completed scan.*range|All scans completed|scan process completed|Scan completed successfully") { $messageType = "RangeEnd" }
-                        elseif ($msg.Value -match "Discovered.*:|.*: Unreachable") { $messageType = "ScanResult" }
+                        elseif ($msg.Value -match "Completed scan.*range|All scans completed|scan process completed|Scan completed successfully") { 
+                            $messageType = "RangeEnd" 
+                            
+                            # If this is the final scan completion, show completion summary
+                            if ($msg.Value -match "Scan completed successfully") {
+                                Write-Log -Message $msg.Value -MessageType $messageType
+                                
+                                # Always show scan completion separator and unreachable summary if there are any
+                                Write-Log -Message "" -MessageType "General"  # Blank line for spacing
+                                Write-Log -Message "===============================================" -MessageType "SectionSeparator"
+                                Write-Log -Message "===         SCAN COMPLETION SUMMARY        ===" -MessageType "SectionSeparator"
+                                Write-Log -Message "===============================================" -MessageType "SectionSeparator"
+                                
+                                # Show unreachable summary if there are unreachable IPs
+                                if ($script:unreachableIPs.Count -gt 0) {
+                                    Write-Log -Message "The following $($script:unreachableIPs.Count) IP addresses did not respond to ping:" -MessageType "UnreachableSummary"
+                                    
+                                    # Group IPs for compact display (show in groups of 8 per line)
+                                    $ipGroups = @()
+                                    for ($i = 0; $i -lt $script:unreachableIPs.Count; $i += 8) {
+                                        $ipGroup = $script:unreachableIPs[$i..([Math]::Min($i + 7, $script:unreachableIPs.Count - 1))] -join ", "
+                                        $ipGroups += $ipGroup
+                                    }
+                                    
+                                    foreach ($ipGroup in $ipGroups) {
+                                        Write-Log -Message "  $ipGroup" -MessageType "UnreachableSummary"
+                                    }
+                                } else {
+                                    Write-Log -Message "All scanned IP addresses were reachable via ping." -MessageType "Success"
+                                }
+                                
+                                Write-Log -Message "===============================================" -MessageType "SectionSeparator"
+                                continue  # Skip the normal processing since we already logged the completion message
+                            }
+                        }
+                        elseif ($msg.Value -match "Discovered.*:") { $messageType = "ScanResult" }
                         elseif ($msg.Value -match "=== SCAN PARAMETERS ===|IP Ranges:|SNMP Community:|Retries:|Max Parallel Scans:|Output File:|Save Unresponsive:|========================") { $messageType = "ScanParameters" }
                         elseif ($msg.Value -match "Worker for.*-|SNMP.*raw value|COM object|OID.*value|Exception|Controller.*Started job|Controller.*Processing.*results|Controller.*Found device result|Found device result for IP|Started job for IP|Processing.*results from") { $messageType = "Diagnostic" }
                         Write-Log -Message $msg.Value -MessageType $messageType
@@ -1576,19 +1652,34 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                             [void]$global:allDiscoveredDevices.Add($item)
                             Write-Log -Message "Added device to collection: $($item.IP) - $($item.Name) - Status: $($item.Status)" -MessageType "Diagnostic"
                         }
+                        
+                        # Always show the discovered devices report section
+                        Write-Log -Message "" -MessageType "General"  # Blank line for spacing
+                        Write-Log -Message "===============================================" -MessageType "ResultsSeparator"
+                        Write-Log -Message "===        DISCOVERED DEVICES REPORT       ===" -MessageType "ResultsSeparator"
+                        Write-Log -Message "===============================================" -MessageType "ResultsSeparator"
+                        Write-Log -Message "Total devices in collection: $($global:allDiscoveredDevices.Count)" -MessageType "Success"
+                        
                         $grouped = $responsive | Group-Object Name, Location, Type
                         if($grouped) {
-                            Write-Log -Message "--- Discovered Devices ---" -MessageType "ScanResult"
                             foreach ($group in $grouped) {
                                 $ips = ($group.Group.IP | Sort-Object) -join ', '; $name = $group.Group[0].Name; $location = $group.Group[0].Location; $type = $group.Group[0].Type
-                                Write-Log -Message "  Name=$name Location=$location Type=$type Address=$ips" -MessageType "ScanResult"
+                                Write-Log -Message "  Name=$name Location=$location Type=$type Address=$ips" -MessageType "DeviceResult"
                             }
+                        } else {
+                            Write-Log -Message "  No MediaLinks devices discovered via SNMP." -MessageType "UnreachableSummary"
                         }
-                        if ($unresponsive) { $unresponsiveIPs = ($unresponsive.IP | Sort-Object) -join ', '; Write-Log -Message "  SNMP Unresponsive: $unresponsiveIPs" -MessageType "ScanResult" }
+                        
+                        if ($unresponsive) { 
+                            $unresponsiveIPs = ($unresponsive.IP | Sort-Object) -join ', '
+                            Write-Log -Message "  SNMP Unresponsive: $unresponsiveIPs" -MessageType "UnreachableSummary" 
+                        }
+                        
+                        Write-Log -Message "===============================================" -MessageType "ResultsSeparator"
                     }
                     "Status" {
                         if ($msg.Value -eq 'Complete') {
-                            Write-Log -Message "Total devices in collection: $($global:allDiscoveredDevices.Count)" -MessageType "General"; $progressBar.Value = 100
+                            $progressBar.Value = 100
                             $cancelButton.Enabled = $false; $saveButton.Enabled = $true; $closeButton.Enabled = $true
                             $guiTimer.Stop()
                             if ($global:scanJob) {
@@ -1684,13 +1775,13 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     }
                 }
                 
-                Write-Log -Message "Results successfully saved to $outputFilePath" -MessageType "General"
+                Write-Log -Message "Results successfully saved to $outputFilePath" -MessageType "Success"
                 [System.Windows.Forms.MessageBox]::Show("Results saved successfully.", "Save Complete", "OK", "Information")
             } else {
                 Write-Log -Message "No devices to save."; [System.Windows.Forms.MessageBox]::Show("There are no discovered devices to save.", "Save Complete", "OK", "Information")
             }
         } catch {
-            Write-Log -Message "ERROR: Failed to save results. $_"; [System.Windows.Forms.MessageBox]::Show("An error occurred while saving the file: `n$($_.Exception.Message)", "Save Error", "OK", "Error")
+            Write-Log -Message "ERROR: Failed to save results. $_" -MessageType "Error"; [System.Windows.Forms.MessageBox]::Show("An error occurred while saving the file: `n$($_.Exception.Message)", "Save Error", "OK", "Error")
         }
     })
 
@@ -1720,9 +1811,9 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             try {
                 $global:scanJob = Start-Job -ScriptBlock $controllerScriptBlock -ArgumentList @($scanSettings)
                 $guiTimer.Start()
-                Write-Log -Message "Scan job started successfully with ID: $($global:scanJob.Id)"
+                Write-Log -Message "Scan job started successfully with ID: $($global:scanJob.Id)" -MessageType "Success"
             } catch {
-                Write-Log -Message "Error starting scan job: $($_.Exception.Message)"
+                Write-Log -Message "Error starting scan job: $($_.Exception.Message)" -MessageType "Error"
                 $script:jobStarted = $false
             }
         } else {
