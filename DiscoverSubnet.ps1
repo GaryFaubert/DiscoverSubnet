@@ -60,7 +60,7 @@
     - Memory usage scales with parallel job count (typically 50-200MB)
 
 .VERSION
-    2.9
+    2.10
 
 .AUTHOR
     Gary Faubert - Assisted by Gemini and Copilot
@@ -69,6 +69,7 @@
     2025-09-26
 
 .CHANGELOG
+    v2.10 - Added support for SWCNT9-100G device type detection in MD8000 series hardware
     v2.9 - Updated subnet scanning to include gateway addresses (.1) for more comprehensive network discovery
     v2.8 - Enhanced PS2EXE compatibility, improved error handling for null paths
     v2.7 - Added system performance analysis and automatic parallel scan recommendations
@@ -83,7 +84,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.9"
+$scriptVersion = "2.10"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -1266,12 +1267,30 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                             $SNMP = New-Object -ComObject olePrn.OleSNMP
                             $SNMP.open($IP, $ScanSettings.SnmpCommunity, $ScanSettings.Retries, 1000)
                             $variantValue = $SNMP.get(".1.3.6.1.4.1.17186.1.10.1.1.3.0")
-                            $SNMP.Close()
                             Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - MD8000 variant OID value: '$variantValue'")
-                            switch ($variantValue) {
-                                "1" { return "MD8000EX" }
-                                "2" { return "MD8000SX" }
-                                default { return "MD8000" }
+                            if ($variantValue -eq "1") {
+                                $SNMP.Close()
+                                return "MD8000EX"
+                            } elseif ($variantValue -eq "2") {
+                                $SNMP.Close()
+                                return "MD8000SX"
+                            } else {
+                                # Check for SWCNT9-100G if variantValue is not 1 or 2
+                                try {
+                                    $swcntOid = ".1.3.6.1.4.1.17186.1.10.1.1.6.1.2.13"
+                                    $swcntValue = $SNMP.get($swcntOid)
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - SWCNT9-100G OID value: '$swcntValue'")
+                                    $SNMP.Close()
+                                    if ($swcntValue -eq 69 -or $swcntValue -eq "69") {
+                                        return "SWCNT9-100G"
+                                    } else {
+                                        return "MD8000"
+                                    }
+                                } catch {
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query SWCNT9-100G OID: $($_.Exception.Message)")
+                                    $SNMP.Close()
+                                    return "MD8000"
+                                }
                             }
                         } catch {
                             Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query MD8000 variant OID: $($_.Exception.Message)")
