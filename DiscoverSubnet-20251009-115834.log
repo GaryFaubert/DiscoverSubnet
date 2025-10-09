@@ -1,0 +1,134 @@
+DiscoverSubnet Version 2.19
+[2025-10-09 11:58:34] DiscoverSubnet Version 2.19
+[2025-10-09 11:58:34] Form shown - starting scan job...
+[2025-10-09 11:58:34] Scan job started successfully with ID: 1
+[2025-10-09 11:58:35] === SCAN PARAMETERS ===
+[2025-10-09 11:58:35] IP Ranges: 192.168.12.0
+[2025-10-09 11:58:35] SNMP Communities: public, medialinks
+[2025-10-09 11:58:35] Retries: 0
+[2025-10-09 11:58:35] Max Parallel Scans: 10
+[2025-10-09 11:58:35] Output File: TestDiscovery.csv
+[2025-10-09 11:58:35] Save Unresponsive: True
+[2025-10-09 11:58:35]  ========================
+[2025-10-09 11:58:35] Controller [4eb5169a]: Successfully verified OleSNMP COM object availability
+[2025-10-09 11:58:35] Starting scan of 254 IP addresses in 1 range(s)...
+[2025-10-09 11:58:35] Starting scan of range '192.168.12.0' (254 addresses)
+[2025-10-09 11:58:35] ========================
+[2025-10-09 11:58:35] Controller [4eb5169a]: Started job for IP 192.168.12.1 (Job ID: 1)
+[2025-10-09 11:58:35] Controller [4eb5169a]: Started job for IP 192.168.12.2 (Job ID: 3)
+[2025-10-09 11:58:35] Controller [4eb5169a]: Started job for IP 192.168.12.3 (Job ID: 5)
+[2025-10-09 11:58:35] Controller [4eb5169a]: Started job for IP 192.168.12.4 (Job ID: 7)
+[2025-10-09 11:58:35] Controller [4eb5169a]: Started job for IP 192.168.12.5 (Job ID: 9)
+[2025-10-09 11:58:36] Controller [4eb5169a]: Started job for IP 192.168.12.6 (Job ID: 11)
+[2025-10-09 11:58:36] Controller [4eb5169a]: Started job for IP 192.168.12.7 (Job ID: 13)
+[2025-10-09 11:58:36] Controller [4eb5169a]: Started job for IP 192.168.12.8 (Job ID: 15)
+[2025-10-09 11:58:36] Controller [4eb5169a]: Started job for IP 192.168.12.9 (Job ID: 17)
+[2025-10-09 11:58:36] Controller [4eb5169a]: Started job for IP 192.168.12.10 (Job ID: 19)
+[2025-10-09 11:58:40] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:40] Worker for 192.168.12.1 - OleSNMP COM object available
+[2025-10-09 11:58:40] Worker for 192.168.12.1 - Starting ping test
+[2025-10-09 11:58:40] Worker for 192.168.12.1 - All ping attempts failed
+[2025-10-09 11:58:40] Controller [4eb5169a]: Started job for IP 192.168.12.11 (Job ID: 21)
+[2025-10-09 11:58:40] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:40] Worker for 192.168.12.2 - OleSNMP COM object available
+[2025-10-09 11:58:40] Worker for 192.168.12.2 - Starting ping test
+[2025-10-09 11:58:40] Worker for 192.168.12.2 - All ping attempts failed
+[2025-10-09 11:58:40] Controller [4eb5169a]: Started job for IP 192.168.12.12 (Job ID: 23)
+[2025-10-09 11:58:40] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:40] Worker for 192.168.12.3 - OleSNMP COM object available
+[2025-10-09 11:58:40] Worker for 192.168.12.3 - Starting ping test
+[2025-10-09 11:58:40] Worker for 192.168.12.3 - All ping attempts failed
+[2025-10-09 11:58:40] Controller [4eb5169a]: Started job for IP 192.168.12.13 (Job ID: 25)
+[2025-10-09 11:58:40] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:40] Worker for 192.168.12.4 - OleSNMP COM object available
+[2025-10-09 11:58:40] Worker for 192.168.12.4 - Starting ping test
+[2025-10-09 11:58:40] Worker for 192.168.12.4 - All ping attempts failed
+[2025-10-09 11:58:41] Controller [4eb5169a]: Started job for IP 192.168.12.14 (Job ID: 27)
+[2025-10-09 11:58:41] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:41] Worker for 192.168.12.5 - OleSNMP COM object available
+[2025-10-09 11:58:41] Worker for 192.168.12.5 - Starting ping test
+[2025-10-09 11:58:41] Worker for 192.168.12.5 - All ping attempts failed
+[2025-10-09 11:58:41] Controller [4eb5169a]: Started job for IP 192.168.12.15 (Job ID: 29)
+[2025-10-09 11:58:41] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:41] Worker for 192.168.12.6 - OleSNMP COM object available
+[2025-10-09 11:58:41] Worker for 192.168.12.6 - Starting ping test
+[2025-10-09 11:58:41] Worker for 192.168.12.6 - All ping attempts failed
+[2025-10-09 11:58:41] Controller [4eb5169a]: Started job for IP 192.168.12.16 (Job ID: 31)
+[2025-10-09 11:58:42] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:42] Worker for 192.168.12.7 - OleSNMP COM object available
+[2025-10-09 11:58:42] Worker for 192.168.12.7 - Starting ping test
+[2025-10-09 11:58:42] Worker for 192.168.12.7 - All ping attempts failed
+[2025-10-09 11:58:42] Controller [4eb5169a]: Started job for IP 192.168.12.17 (Job ID: 33)
+[2025-10-09 11:58:44] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:44] Worker for 192.168.12.8 - OleSNMP COM object available
+[2025-10-09 11:58:44] Worker for 192.168.12.8 - Starting ping test
+[2025-10-09 11:58:44] Worker for 192.168.12.8 - All ping attempts failed
+[2025-10-09 11:58:45] Controller [4eb5169a]: Started job for IP 192.168.12.18 (Job ID: 35)
+[2025-10-09 11:58:45] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:45] Worker for 192.168.12.9 - OleSNMP COM object available
+[2025-10-09 11:58:45] Worker for 192.168.12.9 - Starting ping test
+[2025-10-09 11:58:45] Worker for 192.168.12.9 - All ping attempts failed
+[2025-10-09 11:58:45] Controller [4eb5169a]: Started job for IP 192.168.12.19 (Job ID: 37)
+[2025-10-09 11:58:46] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:46] Worker for 192.168.12.12 - OleSNMP COM object available
+[2025-10-09 11:58:46] Worker for 192.168.12.12 - Starting ping test
+[2025-10-09 11:58:46] Worker for 192.168.12.12 - All ping attempts failed
+[2025-10-09 11:58:46] Controller [4eb5169a]: Started job for IP 192.168.12.20 (Job ID: 39)
+[2025-10-09 11:58:46] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:46] Worker for 192.168.12.13 - OleSNMP COM object available
+[2025-10-09 11:58:46] Worker for 192.168.12.13 - Starting ping test
+[2025-10-09 11:58:46] Worker for 192.168.12.13 - All ping attempts failed
+[2025-10-09 11:58:46] Controller [4eb5169a]: Started job for IP 192.168.12.21 (Job ID: 41)
+[2025-10-09 11:58:46] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:46] Worker for 192.168.12.14 - OleSNMP COM object available
+[2025-10-09 11:58:46] Worker for 192.168.12.14 - Starting ping test
+[2025-10-09 11:58:46] Worker for 192.168.12.14 - All ping attempts failed
+[2025-10-09 11:58:46] Controller [4eb5169a]: Started job for IP 192.168.12.22 (Job ID: 43)
+[2025-10-09 11:58:46] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:46] Worker for 192.168.12.15 - OleSNMP COM object available
+[2025-10-09 11:58:46] Worker for 192.168.12.15 - Starting ping test
+[2025-10-09 11:58:46] Worker for 192.168.12.15 - All ping attempts failed
+[2025-10-09 11:58:47] Controller [4eb5169a]: Started job for IP 192.168.12.23 (Job ID: 45)
+[2025-10-09 11:58:48] Controller [\4eb5169a]: Processing 7 results from final cleanup job
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - OleSNMP COM object available
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - Starting ping test
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - Ping successful on attempt 1
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - Starting SNMP queries, trying 'public' first, then: medialinks
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - Community strings to try in order: public, medialinks
+[2025-10-09 11:58:48] Worker for 192.168.12.10 - SNMP returned null or invalid result
+[2025-10-09 11:58:48] Controller [4eb5169a]: Started job for IP 192.168.12.24 (Job ID: 47)
+[2025-10-09 11:58:48] Controller [\4eb5169a]: Processing 7 results from final cleanup job
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - OleSNMP COM object available
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - Starting ping test
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - Ping successful on attempt 1
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - Starting SNMP queries, trying 'public' first, then: medialinks
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - Community strings to try in order: public, medialinks
+[2025-10-09 11:58:48] Worker for 192.168.12.11 - SNMP returned null or invalid result
+[2025-10-09 11:58:48] Controller [4eb5169a]: Started job for IP 192.168.12.25 (Job ID: 49)
+[2025-10-09 11:58:48] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:48] Worker for 192.168.12.16 - OleSNMP COM object available
+[2025-10-09 11:58:48] Worker for 192.168.12.16 - Starting ping test
+[2025-10-09 11:58:48] Worker for 192.168.12.16 - All ping attempts failed
+[2025-10-09 11:58:48] Controller [4eb5169a]: Started job for IP 192.168.12.26 (Job ID: 51)
+[2025-10-09 11:58:48] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:48] Worker for 192.168.12.17 - OleSNMP COM object available
+[2025-10-09 11:58:48] Worker for 192.168.12.17 - Starting ping test
+[2025-10-09 11:58:48] Worker for 192.168.12.17 - All ping attempts failed
+[2025-10-09 11:58:48] Controller [4eb5169a]: Started job for IP 192.168.12.27 (Job ID: 53)
+[2025-10-09 11:58:50] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:50] Worker for 192.168.12.18 - OleSNMP COM object available
+[2025-10-09 11:58:50] Worker for 192.168.12.18 - Starting ping test
+[2025-10-09 11:58:50] Worker for 192.168.12.18 - All ping attempts failed
+[2025-10-09 11:58:50] Controller [4eb5169a]: Started job for IP 192.168.12.28 (Job ID: 55)
+[2025-10-09 11:58:50] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:50] Worker for 192.168.12.19 - OleSNMP COM object available
+[2025-10-09 11:58:50] Worker for 192.168.12.19 - Starting ping test
+[2025-10-09 11:58:50] Worker for 192.168.12.19 - All ping attempts failed
+[2025-10-09 11:58:50] Controller [4eb5169a]: Started job for IP 192.168.12.29 (Job ID: 57)
+[2025-10-09 11:58:50] Controller [\4eb5169a]: Processing 4 results from final cleanup job
+[2025-10-09 11:58:50] Worker for 192.168.12.20 - OleSNMP COM object available
+[2025-10-09 11:58:50] Worker for 192.168.12.20 - Starting ping test
+[2025-10-09 11:58:50] Worker for 192.168.12.20 - All ping attempts failed
+[2025-10-09 11:58:50] Controller [4eb5169a]: Started job for IP 192.168.12.30 (Job ID: 59)
+[2025-10-09 11:58:51] Scan cancellation requested by user.
+[2025-10-09 11:58:55] Scan cancelled.

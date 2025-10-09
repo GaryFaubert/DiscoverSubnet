@@ -61,11 +61,13 @@
 
 .AUTHOR
     Gary Faubert - Assisted by Gemini and Copilot
+    Copyright "Medialinks.inc 2025"
 
 .DATE
     2025-09-26
 
 .CHANGELOG
+    v2.19 - Added support for multiple SNMP community strings: enter comma-separated values (e.g., "medialinks, custom, private") for mixed-device environments
     v2.18 - Enhanced SNMP querying: try "public" community first, then user-entered; added verbose file-only logging for detailed SNMP values when DiagnosticLevel=Verbose
     v2.17 - Improved GUI display: changed DISCOVERED DEVICES REPORT to white, removed SCAN COMPLETION SUMMARY from GUI, moved total count under DISCOVERED DEVICES REPORT
     v2.16 - Fixed IP range validation to allow scanning of .1 addresses (gateways); changed minimum range from 2 to 1
@@ -89,7 +91,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.18"
+$scriptVersion = "2.19"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -408,9 +410,11 @@ function Validate-Inputs {
     # =============================================================================
     
     # SNMP community strings have specific character and length restrictions
-    if ($inputs.SnmpCommunity -notmatch '^[a-zA-Z0-9@#$%\&\*]{1,32}$') {
+    # Support single community string or comma-separated multiple strings
+    # Each community string must be 1-32 characters with allowed characters
+    if ($inputs.SnmpCommunity -notmatch '^[a-zA-Z0-9@#$%\&\*]{1,32}(\s*,\s*[a-zA-Z0-9@#$%\&\*]{1,32})*$') {
         [System.Windows.Forms.MessageBox]::Show(
-            "Community String must be 1-32 characters and can only contain letters, numbers, and the symbols: @#$%&*.", 
+            "Community String(s) must be 1-32 characters each and can only contain letters, numbers, and the symbols: @#$%&*. Multiple communities can be separated by commas (e.g., 'public, medialinks, custom').", 
             "Validation Error", 
             "OK", 
             "Warning"
@@ -677,9 +681,9 @@ function Create-ConfigForm {
     $label = New-Object System.Windows.Forms.Label; $label.Text = "IP Address Ranges:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
     $ipRangesBox = New-Object System.Windows.Forms.TextBox; $ipRangesBox.Location = New-Object System.Drawing.Point(180, $yPos); $ipRangesBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $ipRangesBox.Text = $Settings.IpRanges; $ipRangesBox.Tag = "IpRanges"; $form.Controls.Add($ipRangesBox); $yPos += 30
     
-    # SNMP Community String - used for device identification queries
-    $label = New-Object System.Windows.Forms.Label; $label.Text = "SNMP Community String:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
-    $communityBox = New-Object System.Windows.Forms.TextBox; $communityBox.Location = New-Object System.Drawing.Point(180, $yPos); $communityBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $communityBox.Text = $Settings.SnmpCommunity; $form.Controls.Add($communityBox); $yPos += 30
+    # SNMP Community String - supports multiple comma-separated values for device identification queries
+    $label = New-Object System.Windows.Forms.Label; $label.Text = "SNMP Community Strings:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
+    $communityBox = New-Object System.Windows.Forms.TextBox; $communityBox.Location = New-Object System.Drawing.Point(180, $yPos); $communityBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $communityBox.Text = $Settings.SnmpCommunity; $communityBox.Tag = "Separate multiple communities with commas (e.g., medialinks, custom, private)"; $form.Controls.Add($communityBox); $yPos += 30
     
     # Retry count for failed ping/SNMP attempts
     $label = New-Object System.Windows.Forms.Label; $label.Text = "Ping/SNMP Retries:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
@@ -940,6 +944,10 @@ try {
         # Add a tooltip to explain the reasoning behind the recommendation
         $tooltip = New-Object System.Windows.Forms.ToolTip
         $tooltip.SetToolTip($configFormElements.ParallelScans, "Auto-recommended: $($initialRecommendation.Explanation)")
+        
+        # Add tooltip for community strings to explain multiple community support
+        $communityTooltip = New-Object System.Windows.Forms.ToolTip
+        $communityTooltip.SetToolTip($configFormElements.CommunityBox, "Enter multiple SNMP community strings separated by commas. Tool tries 'public' first, then your specified communities in order. Example: medialinks, custom, private")
     }
 }
 catch {
@@ -1160,7 +1168,12 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
         # Display professional scan initialization header with all parameters
         Write-Output (New-JobMessage -Type "Log" -Value "=== SCAN PARAMETERS ===")
         Write-Output (New-JobMessage -Type "Log" -Value "IP Ranges: $($Settings.IpRanges)")
-        Write-Output (New-JobMessage -Type "Log" -Value "SNMP Community: $($Settings.SnmpCommunity)")
+        $communityDisplay = if ($Settings.SnmpCommunity -match ',') { 
+            "public, $($Settings.SnmpCommunity)" 
+        } else { 
+            "public, $($Settings.SnmpCommunity)" 
+        }
+        Write-Output (New-JobMessage -Type "Log" -Value "SNMP Communities: $communityDisplay")
         Write-Output (New-JobMessage -Type "Log" -Value "Retries: $($Settings.Retries)")
         Write-Output (New-JobMessage -Type "Log" -Value "Max Parallel Scans: $($Settings.MaxParallelScans)")
         Write-Output (New-JobMessage -Type "Log" -Value "Output File: $($Settings.OutputFileName).$($Settings.OutputFileExtension)")
@@ -1434,14 +1447,20 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             }
             if ($pingSuccess) {
                 if ($snmpAvailable) {
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Starting SNMP queries, trying 'public' first, then '$($ScanSettings.SnmpCommunity)'")
+                    # Parse comma-separated community strings and prepare the attempt list
+                    $userCommunities = $ScanSettings.SnmpCommunity -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" -and $_ -ne "public" }
+                    $communityList = if ($userCommunities.Count -gt 0) { $userCommunities -join ", " } else { "none" }
+                    
+                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Starting SNMP queries, trying 'public' first, then: $communityList")
                     $oidsToGet = @( ".1.3.6.1.2.1.1.2.0", ".1.3.6.1.2.1.1.5.0", ".1.3.6.1.2.1.1.6.0" )
                     
-                    # Create array of community strings to try: "public" first, then user-entered
+                    # Create array of community strings to try: "public" first, then user-entered communities
                     $communityStrings = @("public")
-                    if ($ScanSettings.SnmpCommunity -ne "public") {
-                        $communityStrings += $ScanSettings.SnmpCommunity
+                    if ($userCommunities.Count -gt 0) {
+                        $communityStrings += $userCommunities
                     }
+                    
+                    Write-VerboseLog "Worker for $CurrentIP - Community strings to try in order: $($communityStrings -join ', ')"
                     
                     try {
                         $snmpResult = Get-SnmpValue -IP $CurrentIP -Communities $communityStrings -OIDs $oidsToGet -Retries $ScanSettings.Retries
@@ -1825,7 +1844,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     "# DiscoverSubnet Version $scriptVersion Report",
                     "# Generated: $currentDateTime", 
                     "# IP Ranges Scanned: $($scanSettings.IpRanges)",
-                    "# SNMP Community: $($scanSettings.SnmpCommunity)",
+                    "# SNMP Communities: public, $($scanSettings.SnmpCommunity)",
                     "# Max Parallel Scans: $($scanSettings.MaxParallelScans)",
                     "# Total Devices Found: $($outputData.Count)",
                     "#"

@@ -1,11 +1,11 @@
 {
-    "IpRanges":  "192.168.12.20-25,192.168.12.48-50,192.168.12.90-93,192.168.12.120-123,192.168.12.169-185",
-    "SnmpCommunity":  "medialinks",
+    "IpRanges":  "192.168.12.0",
+    "SnmpCommunity":  "medialinks, somethingelse",
     "Retries":  0,
     "OutputFileName":  "TestDiscovery",
     "OutputFileExtension":  "csv",
     "SaveUnresponsive":  true,
-    "MaxParallelScans":  10,
+    "MaxParallelScans":  12,
     "DiagnosticLevel":  "Verbose",
     "GuiVerbosity":  "Standard"
 }

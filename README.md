@@ -1,4 +1,4 @@
-# DiscoverSubnet v2.8
+# DiscoverSubnet v2.19
 
 A powerful network discovery tool specifically designed to identify and catalog MediaLinks hardware on your network infrastructure.
 
@@ -23,10 +23,12 @@ DiscoverSubnet is a Windows-based network discovery application that combines pi
 
 ### Key Features
 
-- **Smart Device Detection**: Automatically identifies MediaLinks hardware models (MD8000, MDX series, MDP3020, etc.)
-- **Flexible IP Scanning**: Supports single IPs, IP ranges, and subnet notation
+- **Enhanced SNMP Discovery**: Automatically tries "public" community first, then falls back to multiple user-specified community strings for maximum compatibility with mixed-device environments
+- **Smart Device Detection**: Automatically identifies MediaLinks hardware models (MD8000EX/SX, SWCNT9-100G, MDX series, MDP3020, etc.)
+- **Verbose Diagnostic Logging**: Optional file-only logging of detailed SNMP values and queries for troubleshooting
+- **Flexible IP Scanning**: Supports single IPs, IP ranges, and subnet notation including gateway addresses
 - **Performance Optimization**: Automatically analyzes your system to recommend optimal parallel scan settings
-- **Real-time Monitoring**: Live progress updates and detailed logging during scans
+- **Real-time Monitoring**: Live progress updates and color-coded logging during scans
 - **Multiple Output Formats**: Export results in CSV or TXT format
 - **Graceful Degradation**: Works with ping-only if SNMP is unavailable
 
@@ -73,9 +75,10 @@ DiscoverSubnet is a Windows-based network discovery application that combines pi
 
 ### Example: Scanning a Subnet
 1. In the "IP Address Ranges" field, enter: `192.168.1.0`
-2. Set SNMP Community to: `public` (or your network's community string)
-3. Click "Auto" next to "Max Parallel Scans" for optimal performance
-4. Click "Start Discovery"
+2. Set SNMP Communities to: `medialinks, custom, private` (the tool will automatically try "public" first, then these in order)
+3. Set Diagnostic Level to: `Verbose` (for detailed SNMP logging) or `Standard` (for normal operation)
+4. Click "Auto" next to "Max Parallel Scans" for optimal performance
+5. Click "Start Discovery"
 
 ## ⚙️ Configuration Options
 
@@ -84,7 +87,7 @@ DiscoverSubnet is a Windows-based network discovery application that combines pi
 | Setting | Description | Example |
 |---------|-------------|---------|
 | **IP Address Ranges** | Target IP ranges to scan | `192.168.1.0, 10.0.0.10-20` |
-| **SNMP Community String** | Community string for SNMP queries | `public`, `medialinks` |
+| **SNMP Community Strings** | Multiple community strings (tool tries "public" first automatically) | `medialinks, custom, private` |
 | **Ping/SNMP Retries** | Number of retry attempts for failed connections | `0-3` (0 = no retries) |
 
 ### Output Configuration
@@ -99,9 +102,11 @@ DiscoverSubnet is a Windows-based network discovery application that combines pi
 
 | Setting | Description | Options |
 |---------|-------------|---------|
-| **GUI Display Level** | Amount of information shown during scan | `Standard`, `Minimal` |
+| **GUI Display Level** | Amount of information shown during scan | `Minimal`, `Standard`, `Verbose` |
 | **Max Parallel Scans** | Number of concurrent IP scans | `1-100` (Auto-recommended) |
 | **Diagnostic Level** | Detail level for logging | `Off`, `Standard`, `Verbose` |
+
+> **Note**: When Diagnostic Level is set to "Verbose", detailed SNMP values and queries are logged to the log file only (not displayed in GUI) for comprehensive troubleshooting.
 
 ## 🌐 Supported IP Range Formats
 
@@ -113,13 +118,13 @@ The application supports multiple IP range formats for flexible network scanning
 |--------|-------------|---------|--------|
 | **Single IP** | Individual IP address | `192.168.1.100` | Scans only 192.168.1.100 |
 | **IP Range** | Range of IP addresses | `192.168.1.10-20` | Scans 192.168.1.10 through 192.168.1.20 |
-| **Subnet** | Entire subnet (excludes .1 and .255) | `192.168.1.0` | Scans 192.168.1.2 through 192.168.1.254 |
+| **Subnet** | Entire subnet (includes .1 gateway) | `192.168.1.0` | Scans 192.168.1.1 through 192.168.1.254 |
 | **Mixed** | Combination of formats | `192.168.1.5, 10.0.0.0, 172.16.1.100-110` | Scans all specified addresses |
 
 ### Valid IP Range Rules
 - First three octets must be between 1-254
 - Fourth octet must be between 1-254 for specific IPs
-- Subnet notation (.0) automatically excludes network and broadcast addresses
+- Subnet notation (.0) automatically includes gateway (.1) addresses for comprehensive discovery
 - Ranges must have start value less than end value
 
 ## 🔧 Device Identification
@@ -128,10 +133,19 @@ The application supports multiple IP range formats for flexible network scanning
 
 | Device Model | Detection Method | Variants Detected |
 |--------------|------------------|-------------------|
-| **MD8000 Series** | SNMP OID identification | Standard, EX, SX |
-| **MDX Series** | SNMP OID + sysName parsing | 32C, 48X6C |
+| **MD8000 Series** | SNMP OID identification | Standard, EX, SX, SWCNT9-100G |
+| **MDX Series** | SNMP OID + sysName parsing | 32C, 48X6C variants |
 | **MDX2040** | SNMP OID identification | Standard |
 | **MDP3020** | SNMP OID identification | Standard |
+
+### SNMP Community Strategy
+The application uses an intelligent multi-community approach:
+1. **First Attempt**: Always tries "public" community string
+2. **Fallback**: If "public" fails, tries each user-specified community string in order
+3. **Multiple Communities**: Supports comma-separated communities (e.g., "medialinks, custom, private")
+4. **Logging**: In Verbose mode, logs which community string succeeded for each device
+
+This strategy maximizes device discovery success in mixed-device environments where different devices may use different community strings.
 
 ### Device Information Collected
 - **IP Address**: Network address of the device
@@ -194,9 +208,12 @@ The application automatically analyzes your system to recommend optimal settings
 #### SNMP Devices Not Detected
 - **Cause**: Incorrect community string or SNMP disabled
 - **Solution**: 
-  - Verify SNMP community string with network administrator
+  - The tool automatically tries "public" first, then each of your specified community strings in order
+  - Try multiple community strings separated by commas: `medialinks, custom, private`
+  - Verify SNMP community strings with network administrator
   - Check if SNMP is enabled on target devices
-  - Application will continue with ping-only detection
+  - Enable Verbose diagnostic logging to see detailed SNMP attempts and which community succeeded
+  - Application will continue with ping-only detection if all SNMP communities fail
 
 #### Slow Scanning Performance
 - **Cause**: Too few parallel scans or network congestion
@@ -236,20 +253,76 @@ The application creates files in the same directory as the executable:
 ```json
 {
   "IpRanges": "192.168.1.0, 10.0.0.10-20",
-  "SnmpCommunity": "medialinks",
+  "SnmpCommunity": "medialinks, custom, private",
   "Retries": 0,
   "OutputFileName": "DiscoveredDevices",
   "OutputFileExtension": "csv",
   "SaveUnresponsive": false,
   "MaxParallelScans": 20,
-  "DiagnosticLevel": "Standard",
+  "DiagnosticLevel": "Verbose",
   "GuiVerbosity": "Standard"
 }
 ```
 
+### Verbose Logging
+When DiagnosticLevel is set to "Verbose", the log file includes detailed information such as:
+- Raw SNMP OID values retrieved from each device
+- Multiple community string attempts and which one succeeded for each device
+- Detailed device type detection logic
+- SNMP query timing and retry information
+
+This verbose information is written only to the log file and never displayed in the GUI to maintain clean operation.
+
 ## 📈 Version History
 
-### v2.8 (2025-09-26)
+### v2.19 (2025-10-09)
+- **Multiple SNMP Community Support**: Added support for multiple comma-separated community strings for mixed-device environments
+- **Enhanced GUI**: Updated interface to support multiple communities with helpful tooltips and validation
+- **Improved Discovery**: Better success rate in environments with devices using different community strings
+
+### v2.18 (2025-10-09)
+- **Enhanced SNMP Querying**: Worker jobs now try "public" community first, then user-entered community string for improved device discovery
+- **Verbose File-Only Logging**: Added detailed SNMP value logging to file only (not GUI) when DiagnosticLevel is "Verbose"
+- **Improved Troubleshooting**: Comprehensive logging of SNMP queries, community string attempts, and device detection logic
+
+### v2.17 (2025-09-28)
+- Improved GUI display: changed DISCOVERED DEVICES REPORT to white text
+- Removed SCAN COMPLETION SUMMARY from GUI, moved total count under DISCOVERED DEVICES REPORT
+- Enhanced visual clarity and reduced GUI clutter
+
+### v2.16
+- Fixed IP range validation to allow scanning of .1 addresses (gateways)
+- Changed minimum range validation from 2 to 1 for single IP scanning
+
+### v2.15
+- Fixed GUI verbosity filtering to ensure summary sections always appear
+- Improved discovery window display consistency
+
+### v2.14
+- Fixed missing summary sections in scan results
+- Ensured discovered devices report and scan completion summary always appear
+
+### v2.13
+- Added visual section separators with distinct colors
+- Dark cyan for scan completion, dark green for results report
+
+### v2.12
+- Suppressed unreachable IP messages during scan to reduce noise
+- Show gray summary at end instead of cluttering real-time display
+
+### v2.11
+- Added color-coded logging in discovery window
+- Distinguished message types (errors=red, success=green, warnings=yellow, etc.)
+
+### v2.10
+- Added support for SWCNT9-100G device type detection in MD8000 series hardware
+- Enhanced MediaLinks device variant identification
+
+### v2.9
+- Updated subnet scanning to include gateway addresses (.1)
+- More comprehensive network discovery capabilities
+
+### v2.8
 - Enhanced PS2EXE compatibility with improved path resolution
 - Fixed null path errors when running as compiled executable
 - Improved error handling for edge cases
@@ -275,6 +348,6 @@ The application creates files in the same directory as the executable:
 
 For technical support or feature requests, please refer to the application's source repository or contact your system administrator.
 
-**Version**: 2.9  
-**Last Updated**: September 28, 2025  
+**Version**: 2.19  
+**Last Updated**: October 9, 2025  
 **Author**: Gary Faubert
