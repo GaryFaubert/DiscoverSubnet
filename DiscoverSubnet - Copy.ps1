@@ -66,7 +66,6 @@
     2025-09-26
 
 .CHANGELOG
-    v2.18 - Enhanced SNMP querying: try "public" community first, then user-entered; added verbose file-only logging for detailed SNMP values when DiagnosticLevel=Verbose
     v2.17 - Improved GUI display: changed DISCOVERED DEVICES REPORT to white, removed SCAN COMPLETION SUMMARY from GUI, moved total count under DISCOVERED DEVICES REPORT
     v2.16 - Fixed IP range validation to allow scanning of .1 addresses (gateways); changed minimum range from 2 to 1
     v2.15 - Fixed GUI verbosity filtering to ensure summary sections always appear in discovery window
@@ -89,7 +88,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.18"
+$scriptVersion = "2.17"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -1216,14 +1215,6 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 [PSCustomObject]@{Type = $Type; Value = $Value; IP = $CurrentIP} 
             }
             
-            # Helper function for file-only verbose logging (bypasses GUI completely)
-            function Write-VerboseLog {
-                param([string]$Message)
-                if ($ScanSettings.DiagnosticLevel -eq "Verbose") {
-                    Write-Output (New-WorkerMessage -Type "VerboseLog" -Value $Message)
-                }
-            }
-            
             # =============================================================================
             # WORKER-LEVEL SNMP CAPABILITY CHECK
             # =============================================================================
@@ -1244,77 +1235,49 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             }
 
             function Get-SnmpValue {
-                param([string]$IP, [string[]]$Communities, [string[]]$OIDs, [int]$Retries)
+                param([string]$IP, [string]$Community, [string[]]$OIDs, [int]$Retries)
                 $results = @{}
-                $successfulCommunity = $null
-                
-                # Try each community string in order until one works
-                foreach ($community in $Communities) {
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Trying SNMP with community '$community'")
-                    Write-VerboseLog "Worker for $CurrentIP - Starting SNMP query attempt with community string '$community'"
-                    $results = @{}
-                    $lastError = ""
-                    
-                    for ($attempt = 0; $attempt -le $Retries; $attempt++) {
-                        try {
-                            foreach ($oid in $OIDs) {
-                                try {
-                                    $SNMP = New-Object -ComObject olePrn.OleSNMP
-                                    $SNMP.open($IP, $community, $Retries, 1000)
-                                    $value = $SNMP.get($oid)
-                                    $SNMP.Close()
-                                    
-                                    # Log raw SNMP values to file only when in verbose mode
-                                    Write-VerboseLog "Worker for $CurrentIP - SNMP GET $oid with community '$community': '$value' (Type: $($value.GetType().Name))"
-                                    
-                                    if ($value -and $value -ne "") {
-                                        $results[$oid] = $value
-                                        Write-VerboseLog "Worker for $CurrentIP - Successfully stored OID $oid = '$value'"
-                                    } else {
-                                        $results[$oid] = $null
-                                        Write-VerboseLog "Worker for $CurrentIP - OID $oid returned null or empty value"
-                                    }
-                                } catch {
+                $errorOccurred = $false
+                $lastError = ""
+                for ($attempt = 0; $attempt -le $Retries; $attempt++) {
+                    try {
+                        foreach ($oid in $OIDs) {
+                            try {
+                                $SNMP = New-Object -ComObject olePrn.OleSNMP
+                                $SNMP.open($IP, $Community, $Retries, 1000)
+                                $value = $SNMP.get($oid)
+                                $SNMP.Close()
+                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP raw value for $oid : '$value' (Type: $($value.GetType().Name))")
+                                if ($value -and $value -ne "") {
+                                    $results[$oid] = $value
+                                } else {
                                     $results[$oid] = $null
-                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP query failed for $oid with community '$community': $($_.Exception.Message)")
-                                } finally {
-                                    if ($SNMP) { 
-                                        try { $SNMP.Close() } catch { }
-                                        $SNMP = $null
-                                    }
+                                }
+                            } catch {
+                                $results[$oid] = $null
+                            } finally {
+                                if ($SNMP) { 
+                                    try { $SNMP.Close() } catch { }
+                                    $SNMP = $null
                                 }
                             }
-                            
-                            # If we got at least one successful OID result, consider this community successful
-                            if ($results.Values | Where-Object { $_ -ne $null }) {
-                                $successfulCommunity = $community
-                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP successful with community '$community'")
-                                Write-VerboseLog "Worker for $CurrentIP - SNMP queries completed successfully using community string '$community'"
-                                break
-                            }
-                            break
-                        } catch { 
-                            $lastError = $_.Exception.Message
-                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP attempt $($attempt + 1) failed with community '$community': $lastError")
-                            Start-Sleep -Milliseconds 500 
                         }
-                    }
-                    
-                    # If this community worked, stop trying others
-                    if ($successfulCommunity) {
+                        $errorOccurred = $false
                         break
+                    } catch { 
+                        $errorOccurred = $true
+                        $lastError = $_.Exception.Message
+                        Start-Sleep -Milliseconds 500 
                     }
                 }
-                
-                if (-not $successfulCommunity) { 
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - All SNMP community strings failed")
+                if ($errorOccurred) { 
                     return $null 
                 }
                 return $results
             }
 
             function Get-DeviceType {
-                param([string]$OID, [string]$SysName = "", [string]$IP = $CurrentIP, [string[]]$Communities = @("public"))
+                param([string]$OID, [string]$SysName = "", [string]$IP = $CurrentIP)
                 # Normalize OID by removing prefixes, quotes, and whitespace
                 $cleanOID = $OID -replace '^OID=', '' -replace '"', '' -replace '\s', ''
 
@@ -1333,69 +1296,44 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     "1.3.6.1.4.1.17186.1.10" { 
                         # MD8000-Series Refinement: Check for EX/SX variants
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Detected MD8000, checking for EX/SX variant...")
-                        
-                        foreach ($community in $Communities) {
-                            try {
-                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Trying MD8000 variant detection with community '$community'")
-                                $SNMP = New-Object -ComObject olePrn.OleSNMP
-                                $SNMP.open($IP, $community, 3, 1000)
-                                $variantValue = $SNMP.get(".1.3.6.1.4.1.17186.1.10.1.1.3.0")
-                                
-                                # Log detailed variant detection values to file only when in verbose mode
-                                Write-VerboseLog "Worker for $IP - MD8000 variant OID (.1.3.6.1.4.1.17186.1.10.1.1.3.0) with community '$community': '$variantValue'"
-                                
-                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - MD8000 variant OID value with community '$community': '$variantValue'")
-                                if ($variantValue -eq "1") {
-                                    Write-VerboseLog "Worker for $IP - Variant value '1' detected - returning MD8000EX"
+                        try {
+                            $SNMP = New-Object -ComObject olePrn.OleSNMP
+                            $SNMP.open($IP, $ScanSettings.SnmpCommunity, $ScanSettings.Retries, 1000)
+                            $variantValue = $SNMP.get(".1.3.6.1.4.1.17186.1.10.1.1.3.0")
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - MD8000 variant OID value: '$variantValue'")
+                            if ($variantValue -eq "1") {
+                                $SNMP.Close()
+                                return "MD8000EX"
+                            } elseif ($variantValue -eq "2") {
+                                $SNMP.Close()
+                                return "MD8000SX"
+                            } else {
+                                # Check for SWCNT9-100G if variantValue is not 1 or 2
+                                try {
+                                    $swcntOid = ".1.3.6.1.4.1.17186.1.10.1.1.6.1.2.13"
+                                    $swcntValue = $SNMP.get($swcntOid)
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - SWCNT9-100G OID value: '$swcntValue'")
                                     $SNMP.Close()
-                                    return "MD8000EX"
-                                } elseif ($variantValue -eq "2") {
-                                    Write-VerboseLog "Worker for $IP - Variant value '2' detected - returning MD8000SX"
-                                    $SNMP.Close()
-                                    return "MD8000SX"
-                                } else {
-                                    # Check for SWCNT9-100G if variantValue is not 1 or 2
-                                    try {
-                                        $swcntOid = ".1.3.6.1.4.1.17186.1.10.1.1.6.1.2.13"
-                                        $swcntValue = $SNMP.get($swcntOid)
-                                        
-                                        # Log detailed SWCNT detection values to file only when in verbose mode
-                                        Write-VerboseLog "Worker for $IP - SWCNT9-100G OID ($swcntOid) with community '$community': '$swcntValue'"
-                                        
-                                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - SWCNT9-100G OID value with community '$community': '$swcntValue'")
-                                        $SNMP.Close()
-                                        if ($swcntValue -eq 69 -or $swcntValue -eq "69") {
-                                            Write-VerboseLog "Worker for $IP - SWCNT value '69' detected - returning SWCNT9-100G"
-                                            return "SWCNT9-100G"
-                                        } else {
-                                            Write-VerboseLog "Worker for $IP - No specific variant detected - returning generic MD8000"
-                                            return "MD8000"
-                                        }
-                                    } catch {
-                                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query SWCNT9-100G OID with community '$community': $($_.Exception.Message)")
-                                        Write-VerboseLog "Worker for $IP - SWCNT9-100G query failed: $($_.Exception.Message)"
-                                        $SNMP.Close()
+                                    if ($swcntValue -eq 69 -or $swcntValue -eq "69") {
+                                        return "SWCNT9-100G"
+                                    } else {
                                         return "MD8000"
                                     }
-                                }
-                                # If we got here, we successfully queried but didn't get variant info
-                                $SNMP.Close()
-                                return "MD8000"
-                            } catch {
-                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query MD8000 variant OID with community '$community': $($_.Exception.Message)")
-                                Write-VerboseLog "Worker for $IP - MD8000 variant detection failed with community '$community': $($_.Exception.Message)"
-                                # Try next community string
-                                continue
-                            } finally {
-                                if ($SNMP) { 
-                                    try { $SNMP.Close() } catch { }
-                                    $SNMP = $null
+                                } catch {
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query SWCNT9-100G OID: $($_.Exception.Message)")
+                                    $SNMP.Close()
+                                    return "MD8000"
                                 }
                             }
+                        } catch {
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Failed to query MD8000 variant OID: $($_.Exception.Message)")
+                            return "MD8000"
+                        } finally {
+                            if ($SNMP) { 
+                                try { $SNMP.Close() } catch { }
+                                $SNMP = $null
+                            }
                         }
-                        # If all community strings failed
-                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - All community strings failed for MD8000 variant detection")
-                        return "MD8000"
                     }
                     "1.3.6.1.4.1.21839.1.2.17"    { return "MDX2040" }
                     "1.3.6.1.4.1.17186.1.24"      { return "MDP3020" }
@@ -1434,17 +1372,10 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             }
             if ($pingSuccess) {
                 if ($snmpAvailable) {
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Starting SNMP queries, trying 'public' first, then '$($ScanSettings.SnmpCommunity)'")
+                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Starting SNMP queries with community '$($ScanSettings.SnmpCommunity)'")
                     $oidsToGet = @( ".1.3.6.1.2.1.1.2.0", ".1.3.6.1.2.1.1.5.0", ".1.3.6.1.2.1.1.6.0" )
-                    
-                    # Create array of community strings to try: "public" first, then user-entered
-                    $communityStrings = @("public")
-                    if ($ScanSettings.SnmpCommunity -ne "public") {
-                        $communityStrings += $ScanSettings.SnmpCommunity
-                    }
-                    
                     try {
-                        $snmpResult = Get-SnmpValue -IP $CurrentIP -Communities $communityStrings -OIDs $oidsToGet -Retries $ScanSettings.Retries
+                        $snmpResult = Get-SnmpValue -IP $CurrentIP -Community $ScanSettings.SnmpCommunity -OIDs $oidsToGet -Retries $ScanSettings.Retries
                         # Handle the case where the result might be mixed with other outputs in an array
                         if ($snmpResult -is [array]) {
                             $snmpResult = $snmpResult | Where-Object { $_ -is [hashtable] } | Select-Object -First 1
@@ -1463,13 +1394,6 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         $typeOID = $snmpResult[".1.3.6.1.2.1.1.2.0"]
                         $name = $snmpResult[".1.3.6.1.2.1.1.5.0"]
                         $location = $snmpResult[".1.3.6.1.2.1.1.6.0"]
-                        
-                        # Log detailed SNMP values to file only when in verbose mode
-                        Write-VerboseLog "Worker for $CurrentIP - SNMP query results:"
-                        Write-VerboseLog "  Device Type OID (.1.3.6.1.2.1.1.2.0): '$typeOID'"
-                        Write-VerboseLog "  System Name (.1.3.6.1.2.1.1.5.0): '$name'"
-                        Write-VerboseLog "  System Location (.1.3.6.1.2.1.1.6.0): '$location'"
-                        
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP data retrieved: typeOID='$typeOID', name='$name', location='$location'")
                         
                         # Handle empty/null values like v1 does
@@ -1477,9 +1401,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         if ([string]::IsNullOrWhiteSpace($location)) { $location = "[No Location Found]" }
                         
                         # If the type OID is missing, the type is UNKNOWN.
-                        $type = if ($typeOID) { Get-DeviceType -OID $typeOID -SysName $name -IP $CurrentIP -Communities $communityStrings } else { "UNKNOWN" }
-                        
-                        Write-VerboseLog "Worker for $CurrentIP - Final processed values: Name='$name', Location='$location', Type='$type'"
+                        $type = if ($typeOID) { Get-DeviceType -OID $typeOID -SysName $name -IP $CurrentIP } else { "UNKNOWN" }
                         
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Device type determined: '$type'")
                         Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = $name; Location = $location; Type = $type; Status = "Responsive" })
@@ -1532,9 +1454,6 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                             if ($jobResult -and $jobResult.Type -eq "WorkerLog") {
                                 # Forward worker log messages to main log
                                 Write-Output (New-JobMessage -Type "Log" -Value $jobResult.Value)
-                            } elseif ($jobResult -and $jobResult.Type -eq "VerboseLog") {
-                                # Verbose log messages: write to log file only, never to GUI
-                                Write-Output (New-JobMessage -Type "VerboseFileOnly" -Value $jobResult.Value)
                             } elseif ($jobResult -and $jobResult.IP) {
                                 # This is a device result - format for professional display
                                 if ($jobResult.Status -eq "Unresponsive") {
@@ -1586,9 +1505,6 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     foreach ($jobResult in $jobResults) {
                         if ($jobResult -and $jobResult.Type -eq "WorkerLog") {
                             # Skip worker log messages from GUI display (keep in full log only)
-                        } elseif ($jobResult -and $jobResult.Type -eq "VerboseLog") {
-                            # Verbose log messages: write to log file only, never to GUI
-                            Write-Output (New-JobMessage -Type "VerboseFileOnly" -Value $jobResult.Value)
                         } elseif ($jobResult -and $jobResult.IP) {
                             # This is a device result - format for professional display
                             if ($jobResult.Status -eq "Unresponsive") {
@@ -1728,12 +1644,6 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         if ($msg.Value -match "Ping successful|Ping failed") { $messageType = "PingResult" }
                         elseif ($msg.Value -match "Device type determined|Found device") { $messageType = "ScanResult" }
                         Write-Log -Message $msg.Value -MessageType $messageType
-                    }
-                    "VerboseFileOnly" {
-                        # Write directly to log file only, bypassing GUI completely
-                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                        $logEntry = "[$timestamp] $($msg.Value)"
-                        Add-Content -Path $logFilePath -Value $logEntry
                     }
                     "Progress" { if($msg.Value -le 100) {$progressBar.Value = [int]$msg.Value } }
                     "RangeResult" {

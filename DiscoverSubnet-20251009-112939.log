@@ -1,0 +1,329 @@
+DiscoverSubnet Version 2.18
+[2025-10-09 11:29:39] DiscoverSubnet Version 2.18
+[2025-10-09 11:29:39] Form shown - starting scan job...
+[2025-10-09 11:29:39] Scan job started successfully with ID: 1
+[2025-10-09 11:29:40] === SCAN PARAMETERS ===
+[2025-10-09 11:29:40] IP Ranges: 192.168.12.20-25,192.168.12.48-50,192.168.12.90-93,192.168.12.120-123,192.168.12.169-185
+[2025-10-09 11:29:40] SNMP Community: medialinks
+[2025-10-09 11:29:40] Retries: 0
+[2025-10-09 11:29:40] Max Parallel Scans: 10
+[2025-10-09 11:29:40] Output File: TestDiscovery.csv
+[2025-10-09 11:29:40] Save Unresponsive: True
+[2025-10-09 11:29:40]  ========================
+[2025-10-09 11:29:40] Controller [2a449d1d]: Successfully verified OleSNMP COM object availability
+[2025-10-09 11:29:40] Starting scan of 34 IP addresses in 5 range(s)...
+[2025-10-09 11:29:40] Starting scan of range '192.168.12.20-25' (6 addresses)
+[2025-10-09 11:29:40] Starting scan of range '192.168.12.48-50' (3 addresses)
+[2025-10-09 11:29:40] Starting scan of range '192.168.12.90-93' (4 addresses)
+[2025-10-09 11:29:40] Starting scan of range '192.168.12.120-123' (4 addresses)
+[2025-10-09 11:29:40] Starting scan of range '192.168.12.169-185' (17 addresses)
+[2025-10-09 11:29:40] ========================
+[2025-10-09 11:29:40] Controller [2a449d1d]: Started job for IP 192.168.12.20 (Job ID: 1)
+[2025-10-09 11:29:40] Controller [2a449d1d]: Started job for IP 192.168.12.21 (Job ID: 3)
+[2025-10-09 11:29:40] Controller [2a449d1d]: Started job for IP 192.168.12.22 (Job ID: 5)
+[2025-10-09 11:29:40] Controller [2a449d1d]: Started job for IP 192.168.12.23 (Job ID: 7)
+[2025-10-09 11:29:40] Controller [2a449d1d]: Started job for IP 192.168.12.24 (Job ID: 9)
+[2025-10-09 11:29:41] Controller [2a449d1d]: Started job for IP 192.168.12.25 (Job ID: 11)
+[2025-10-09 11:29:41] Controller [2a449d1d]: Started job for IP 192.168.12.48 (Job ID: 13)
+[2025-10-09 11:29:41] Controller [2a449d1d]: Started job for IP 192.168.12.49 (Job ID: 15)
+[2025-10-09 11:29:41] Controller [2a449d1d]: Started job for IP 192.168.12.50 (Job ID: 17)
+[2025-10-09 11:29:41] Controller [2a449d1d]: Started job for IP 192.168.12.90 (Job ID: 19)
+[2025-10-09 11:29:44] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:44] Worker for 192.168.12.20 - OleSNMP COM object available
+[2025-10-09 11:29:44] Worker for 192.168.12.20 - Starting ping test
+[2025-10-09 11:29:44] Worker for 192.168.12.20 - All ping attempts failed
+[2025-10-09 11:29:45] Controller [2a449d1d]: Started job for IP 192.168.12.91 (Job ID: 21)
+[2025-10-09 11:29:47] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:47] Worker for 192.168.12.25 - OleSNMP COM object available
+[2025-10-09 11:29:47] Worker for 192.168.12.25 - Starting ping test
+[2025-10-09 11:29:47] Worker for 192.168.12.25 - All ping attempts failed
+[2025-10-09 11:29:47] Controller [2a449d1d]: Started job for IP 192.168.12.92 (Job ID: 23)
+[2025-10-09 11:29:47] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:47] Worker for 192.168.12.48 - OleSNMP COM object available
+[2025-10-09 11:29:47] Worker for 192.168.12.48 - Starting ping test
+[2025-10-09 11:29:47] Worker for 192.168.12.48 - All ping attempts failed
+[2025-10-09 11:29:47] Controller [2a449d1d]: Started job for IP 192.168.12.93 (Job ID: 25)
+[2025-10-09 11:29:48] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - OleSNMP COM object available
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - Starting ping test
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - Ping successful on attempt 1
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - SNMP query results:
+[2025-10-09 11:29:48]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0'
+[2025-10-09 11:29:48]   System Name (.1.3.6.1.2.1.1.5.0): '48X6C-1'
+[2025-10-09 11:29:48]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0', name='48X6C-1', location='MLI-LAB Windor'
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - Final processed values: Name='48X6C-1', Location='MLI-LAB Windor', Type='  MDX-48X6C'
+[2025-10-09 11:29:48] Worker for 192.168.12.91 - Device type determined: '  MDX-48X6C'
+[2025-10-09 11:29:48] Discovered 192.168.12.91: Name=48X6C-1, Location=MLI-LAB Windor, Type=  MDX-48X6C
+[2025-10-09 11:29:49] Controller [2a449d1d]: Started job for IP 192.168.12.120 (Job ID: 27)
+[2025-10-09 11:29:49] Controller [\2a449d1d]: Processing 6 results from final cleanup job
+[2025-10-09 11:29:49] Worker for 192.168.12.21 - OleSNMP COM object available
+[2025-10-09 11:29:49] Worker for 192.168.12.21 - Starting ping test
+[2025-10-09 11:29:49] Worker for 192.168.12.21 - Ping successful on attempt 1
+[2025-10-09 11:29:49] Worker for 192.168.12.21 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:49] Worker for 192.168.12.21 - SNMP returned null or invalid result
+[2025-10-09 11:29:49] Controller [2a449d1d]: Started job for IP 192.168.12.121 (Job ID: 29)
+[2025-10-09 11:29:49] Controller [\2a449d1d]: Processing 6 results from final cleanup job
+[2025-10-09 11:29:49] Worker for 192.168.12.22 - OleSNMP COM object available
+[2025-10-09 11:29:49] Worker for 192.168.12.22 - Starting ping test
+[2025-10-09 11:29:49] Worker for 192.168.12.22 - Ping successful on attempt 1
+[2025-10-09 11:29:49] Worker for 192.168.12.22 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:49] Worker for 192.168.12.22 - SNMP returned null or invalid result
+[2025-10-09 11:29:49] Controller [2a449d1d]: Started job for IP 192.168.12.122 (Job ID: 31)
+[2025-10-09 11:29:50] Controller [\2a449d1d]: Processing 6 results from final cleanup job
+[2025-10-09 11:29:50] Worker for 192.168.12.24 - OleSNMP COM object available
+[2025-10-09 11:29:50] Worker for 192.168.12.24 - Starting ping test
+[2025-10-09 11:29:50] Worker for 192.168.12.24 - Ping successful on attempt 1
+[2025-10-09 11:29:50] Worker for 192.168.12.24 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:50] Worker for 192.168.12.24 - SNMP returned null or invalid result
+[2025-10-09 11:29:51] Controller [2a449d1d]: Started job for IP 192.168.12.123 (Job ID: 33)
+[2025-10-09 11:29:51] Controller [\2a449d1d]: Processing 6 results from final cleanup job
+[2025-10-09 11:29:51] Worker for 192.168.12.23 - OleSNMP COM object available
+[2025-10-09 11:29:51] Worker for 192.168.12.23 - Starting ping test
+[2025-10-09 11:29:51] Worker for 192.168.12.23 - Ping successful on attempt 1
+[2025-10-09 11:29:51] Worker for 192.168.12.23 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:51] Worker for 192.168.12.23 - SNMP returned null or invalid result
+[2025-10-09 11:29:51] Controller [2a449d1d]: Started job for IP 192.168.12.169 (Job ID: 35)
+[2025-10-09 11:29:51] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:51] Worker for 192.168.12.50 - OleSNMP COM object available
+[2025-10-09 11:29:51] Worker for 192.168.12.50 - Starting ping test
+[2025-10-09 11:29:51] Worker for 192.168.12.50 - All ping attempts failed
+[2025-10-09 11:29:51] Controller [2a449d1d]: Started job for IP 192.168.12.170 (Job ID: 37)
+[2025-10-09 11:29:51] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - OleSNMP COM object available
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - Starting ping test
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - Ping successful on attempt 1
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - SNMP query results:
+[2025-10-09 11:29:51]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0'
+[2025-10-09 11:29:51]   System Name (.1.3.6.1.2.1.1.5.0): '48X6C-2'
+[2025-10-09 11:29:51]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0', name='48X6C-2', location='MLI-LAB Windor'
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - Final processed values: Name='48X6C-2', Location='MLI-LAB Windor', Type='  MDX-48X6C'
+[2025-10-09 11:29:51] Worker for 192.168.12.92 - Device type determined: '  MDX-48X6C'
+[2025-10-09 11:29:51] Discovered 192.168.12.92: Name=48X6C-2, Location=MLI-LAB Windor, Type=  MDX-48X6C
+[2025-10-09 11:29:51] Controller [2a449d1d]: Started job for IP 192.168.12.171 (Job ID: 39)
+[2025-10-09 11:29:53] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:53] Worker for 192.168.12.90 - OleSNMP COM object available
+[2025-10-09 11:29:53] Worker for 192.168.12.90 - Starting ping test
+[2025-10-09 11:29:53] Worker for 192.168.12.90 - All ping attempts failed
+[2025-10-09 11:29:53] Controller [2a449d1d]: Started job for IP 192.168.12.172 (Job ID: 41)
+[2025-10-09 11:29:53] Controller [\2a449d1d]: Processing 6 results from final cleanup job
+[2025-10-09 11:29:53] Worker for 192.168.12.49 - OleSNMP COM object available
+[2025-10-09 11:29:53] Worker for 192.168.12.49 - Starting ping test
+[2025-10-09 11:29:53] Worker for 192.168.12.49 - Ping successful on attempt 1
+[2025-10-09 11:29:53] Worker for 192.168.12.49 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:53] Worker for 192.168.12.49 - SNMP returned null or invalid result
+[2025-10-09 11:29:53] Controller [2a449d1d]: Started job for IP 192.168.12.173 (Job ID: 43)
+[2025-10-09 11:29:53] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:53] Worker for 192.168.12.93 - OleSNMP COM object available
+[2025-10-09 11:29:53] Worker for 192.168.12.93 - Starting ping test
+[2025-10-09 11:29:53] Worker for 192.168.12.93 - All ping attempts failed
+[2025-10-09 11:29:53] Controller [2a449d1d]: Started job for IP 192.168.12.174 (Job ID: 45)
+[2025-10-09 11:29:53] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - OleSNMP COM object available
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - Starting ping test
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - Ping successful on attempt 1
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - SNMP query results:
+[2025-10-09 11:29:53]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.24'
+[2025-10-09 11:29:53]   System Name (.1.3.6.1.2.1.1.5.0): 'MDP3020_0000000115'
+[2025-10-09 11:29:53]   System Location (.1.3.6.1.2.1.1.6.0): 'Windsor'
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.24', name='MDP3020_0000000115', location='Windsor'
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - Final processed values: Name='MDP3020_0000000115', Location='Windsor', Type='MDP3020'
+[2025-10-09 11:29:53] Worker for 192.168.12.121 - Device type determined: 'MDP3020'
+[2025-10-09 11:29:53] Discovered 192.168.12.121: Name=MDP3020_0000000115, Location=Windsor, Type=MDP3020
+[2025-10-09 11:29:54] Controller [2a449d1d]: Started job for IP 192.168.12.175 (Job ID: 47)
+[2025-10-09 11:29:54] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - OleSNMP COM object available
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - Starting ping test
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - Ping successful on attempt 1
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - SNMP query results:
+[2025-10-09 11:29:54]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.24'
+[2025-10-09 11:29:54]   System Name (.1.3.6.1.2.1.1.5.0): 'MDP3020_M310000251'
+[2025-10-09 11:29:54]   System Location (.1.3.6.1.2.1.1.6.0): 'Windsor'
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.24', name='MDP3020_M310000251', location='Windsor'
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - Final processed values: Name='MDP3020_M310000251', Location='Windsor', Type='MDP3020'
+[2025-10-09 11:29:54] Worker for 192.168.12.122 - Device type determined: 'MDP3020'
+[2025-10-09 11:29:54] Discovered 192.168.12.122: Name=MDP3020_M310000251, Location=Windsor, Type=MDP3020
+[2025-10-09 11:29:54] Controller [2a449d1d]: Started job for IP 192.168.12.176 (Job ID: 49)
+[2025-10-09 11:29:55] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - OleSNMP COM object available
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - Starting ping test
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - Ping successful on attempt 1
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - SNMP query results:
+[2025-10-09 11:29:55]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.10'
+[2025-10-09 11:29:55]   System Name (.1.3.6.1.2.1.1.5.0): 'CNN'
+[2025-10-09 11:29:55]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.10', name='CNN', location='MLI-LAB Windor'
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - Final processed values: Name='CNN', Location='MLI-LAB Windor', Type='     MD8000EX'
+[2025-10-09 11:29:55] Worker for 192.168.12.170 - Device type determined: '     MD8000EX'
+[2025-10-09 11:29:55] Discovered 192.168.12.170: Name=CNN, Location=MLI-LAB Windor, Type=     MD8000EX
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.177 (Job ID: 51)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.120 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.120 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.120 - All ping attempts failed
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.178 (Job ID: 53)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.123 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.123 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.123 - All ping attempts failed
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.179 (Job ID: 55)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.169 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.169 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.169 - All ping attempts failed
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.180 (Job ID: 57)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - Ping successful on attempt 1
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - SNMP query results:
+[2025-10-09 11:29:56]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.10'
+[2025-10-09 11:29:56]   System Name (.1.3.6.1.2.1.1.5.0): 'CNN'
+[2025-10-09 11:29:56]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.10', name='CNN', location='MLI-LAB Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - Final processed values: Name='CNN', Location='MLI-LAB Windor', Type='     MD8000EX'
+[2025-10-09 11:29:56] Worker for 192.168.12.171 - Device type determined: '     MD8000EX'
+[2025-10-09 11:29:56] Discovered 192.168.12.171: Name=CNN, Location=MLI-LAB Windor, Type=     MD8000EX
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.181 (Job ID: 59)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - Ping successful on attempt 1
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - SNMP query results:
+[2025-10-09 11:29:56]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.10'
+[2025-10-09 11:29:56]   System Name (.1.3.6.1.2.1.1.5.0): 'ABC'
+[2025-10-09 11:29:56]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.10', name='ABC', location='MLI-LAB Windor Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - Final processed values: Name='ABC', Location='MLI-LAB Windor Windor', Type='      MD8000'
+[2025-10-09 11:29:56] Worker for 192.168.12.175 - Device type determined: '      MD8000'
+[2025-10-09 11:29:56] Discovered 192.168.12.175: Name=ABC, Location=MLI-LAB Windor Windor, Type=      MD8000
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.182 (Job ID: 61)
+[2025-10-09 11:29:56] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - OleSNMP COM object available
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - Starting ping test
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - Ping successful on attempt 1
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - SNMP query results:
+[2025-10-09 11:29:56]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.1.10'
+[2025-10-09 11:29:56]   System Name (.1.3.6.1.2.1.1.5.0): 'ABC'
+[2025-10-09 11:29:56]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.1.10', name='ABC', location='MLI-LAB Windor Windor'
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - Final processed values: Name='ABC', Location='MLI-LAB Windor Windor', Type='      MD8000'
+[2025-10-09 11:29:56] Worker for 192.168.12.176 - Device type determined: '      MD8000'
+[2025-10-09 11:29:56] Discovered 192.168.12.176: Name=ABC, Location=MLI-LAB Windor Windor, Type=      MD8000
+[2025-10-09 11:29:56] Controller [2a449d1d]: Started job for IP 192.168.12.183 (Job ID: 63)
+[2025-10-09 11:29:57] Controller [\2a449d1d]: Processing 4 results from final cleanup job
+[2025-10-09 11:29:57] Worker for 192.168.12.172 - OleSNMP COM object available
+[2025-10-09 11:29:57] Worker for 192.168.12.172 - Starting ping test
+[2025-10-09 11:29:57] Worker for 192.168.12.172 - All ping attempts failed
+[2025-10-09 11:29:57] Controller [2a449d1d]: Started job for IP 192.168.12.184 (Job ID: 65)
+[2025-10-09 11:29:57] Controller [\2a449d1d]: Processing 13 results from final cleanup job
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - OleSNMP COM object available
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - Starting ping test
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - Ping successful on attempt 1
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - Starting SNMP queries, trying 'public' first, then 'medialinks'
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - SNMP returned hashtable with 3 keys
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - SNMP query results:
+[2025-10-09 11:29:57]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0'
+[2025-10-09 11:29:57]   System Name (.1.3.6.1.2.1.1.5.0): '32C-1'
+[2025-10-09 11:29:57]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - SNMP data retrieved: typeOID='.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0', name='32C-1', location='MLI-LAB Windor'
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - Final processed values: Name='32C-1', Location='MLI-LAB Windor', Type='  MDX-32C'
+[2025-10-09 11:29:57] Worker for 192.168.12.181 - Device type determined: '  MDX-32C'
+[2025-10-09 11:29:57] Discovered 192.168.12.181: Name=32C-1, Location=MLI-LAB Windor, Type=  MDX-32C
+[2025-10-09 11:29:57] Controller [2a449d1d]: Started job for IP 192.168.12.185 (Job ID: 67)
+[2025-10-09 11:29:57] Worker for 192.168.12.182 - SNMP query results:
+[2025-10-09 11:29:57]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0'
+[2025-10-09 11:29:57]   System Name (.1.3.6.1.2.1.1.5.0): '32C-2'
+[2025-10-09 11:29:57]   System Location (.1.3.6.1.2.1.1.6.0): 'MLI-LAB Windor'
+[2025-10-09 11:29:57] Worker for 192.168.12.182 - Final processed values: Name='32C-2', Location='MLI-LAB Windor', Type='  MDX-32C'
+[2025-10-09 11:29:57] Discovered 192.168.12.182: Name=32C-2, Location=MLI-LAB Windor, Type=  MDX-32C
+[2025-10-09 11:29:58] Worker for 192.168.12.173 - SNMP query results:
+[2025-10-09 11:29:58]   Device Type OID (.1.3.6.1.2.1.1.2.0): '.iso.org.dod.internet.private.enterprises.21839.1.2.17'
+[2025-10-09 11:29:58]   System Name (.1.3.6.1.2.1.1.5.0): '2040 1'
+[2025-10-09 11:29:58]   System Location (.1.3.6.1.2.1.1.6.0): 'Switches'
+[2025-10-09 11:29:58] Worker for 192.168.12.173 - Final processed values: Name='2040 1', Location='Switches', Type='MDX2040'
+[2025-10-09 11:29:58] Discovered 192.168.12.173: Name=2040 1, Location=Switches, Type=MDX2040
+[2025-10-09 11:30:01] Job completed - waiting for controller to send final results...
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.20 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.25 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.48 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.91 - 48X6C-1 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.21 - [No Name Found] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.22 - [No Name Found] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.24 - [No Name Found] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.23 - [No Name Found] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.50 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.92 - 48X6C-2 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.90 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.49 - [No Name Found] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.93 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.121 - MDP3020_0000000115 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.122 - MDP3020_M310000251 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.170 - CNN - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.120 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.123 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.169 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.171 - CNN - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.175 - ABC - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.176 - ABC - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.172 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.181 - 32C-1 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.182 - 32C-2 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.173 - 2040 1 - Status: Responsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.174 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.177 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.178 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.179 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.180 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.183 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.184 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] Added device to collection: 192.168.12.185 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:01] 
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:01] ===        DISCOVERED DEVICES REPORT       ===
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:01] Total devices in collection: 34
+[2025-10-09 11:30:01]   Name=48X6C-1 Location=MLI-LAB Windor Type=  MDX-48X6C Address=192.168.12.91
+[2025-10-09 11:30:01]   Name=48X6C-2 Location=MLI-LAB Windor Type=  MDX-48X6C Address=192.168.12.92
+[2025-10-09 11:30:01]   Name=MDP3020_0000000115 Location=Windsor Type=MDP3020 Address=192.168.12.121
+[2025-10-09 11:30:01]   Name=MDP3020_M310000251 Location=Windsor Type=MDP3020 Address=192.168.12.122
+[2025-10-09 11:30:01]   Name=CNN Location=MLI-LAB Windor Type=     MD8000EX Address=192.168.12.170, 192.168.12.171
+[2025-10-09 11:30:01]   Name=ABC Location=MLI-LAB Windor Windor Type=      MD8000 Address=192.168.12.175, 192.168.12.176
+[2025-10-09 11:30:01]   Name=32C-1 Location=MLI-LAB Windor Type=  MDX-32C Address=192.168.12.181
+[2025-10-09 11:30:01]   Name=32C-2 Location=MLI-LAB Windor Type=  MDX-32C Address=192.168.12.182
+[2025-10-09 11:30:01]   Name=2040 1 Location=Switches Type=MDX2040 Address=192.168.12.173
+[2025-10-09 11:30:01]   SNMP Unresponsive: 192.168.12.120, 192.168.12.123, 192.168.12.169, 192.168.12.172, 192.168.12.174, 192.168.12.177, 192.168.12.178, 192.168.12.179, 192.168.12.180, 192.168.12.183, 192.168.12.184, 192.168.12.185, 192.168.12.20, 192.168.12.21, 192.168.12.22, 192.168.12.23, 192.168.12.24, 192.168.12.25, 192.168.12.48, 192.168.12.49, 192.168.12.50, 192.168.12.90, 192.168.12.93
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:01] Scan completed successfully
+[2025-10-09 11:30:01] 
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:01] ===         SCAN COMPLETION SUMMARY        ===
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:01] The following 23 IP addresses did not respond to ping:
+[2025-10-09 11:30:01]   192.168.12.20, 192.168.12.25, 192.168.12.48, 192.168.12.21, 192.168.12.22, 192.168.12.24, 192.168.12.23, 192.168.12.50
+[2025-10-09 11:30:01]   192.168.12.90, 192.168.12.49, 192.168.12.93, 192.168.12.120, 192.168.12.123, 192.168.12.169, 192.168.12.172, 192.168.12.174
+[2025-10-09 11:30:01]   192.168.12.177, 192.168.12.178, 192.168.12.179, 192.168.12.180, 192.168.12.183, 192.168.12.184, 192.168.12.185
+[2025-10-09 11:30:01] ===============================================
+[2025-10-09 11:30:06] Save button clicked. Total devices in collection: 34
+[2025-10-09 11:30:06] Sample devices in collection:
+[2025-10-09 11:30:06]   Device: 192.168.12.20 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:06]   Device: 192.168.12.25 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:06]   Device: 192.168.12.48 - [No Response] - Status: Unresponsive
+[2025-10-09 11:30:06] Results successfully saved to C:\DiscoverSubnet\TestDiscovery.csv
