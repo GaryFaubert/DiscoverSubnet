@@ -1,0 +1,20 @@
+﻿# DiscoverSubnet Version 2.19 Report
+# Generated: 2025-10-27 11:54:23
+# IP Ranges Scanned: 192.168.12.0
+# SNMP Communities: public, medialinks, somethingelse
+# Max Parallel Scans: 12
+# Total Devices Found: 13
+#
+Name                Location          Type        IPs
+----------------------------------------------------------------------
+48X6C-2             MLI-LAB Windor      MDX-48X6C 192.168.12.92
+48X6C-1             MLI-LAB Windor      MDX-48X6C 192.168.12.91
+MDP3020_0000000115  [No Location F... MDP3020     192.168.12.121
+MDP3020_M310000251  [No Location F... MDP3020     192.168.12.122
+ESPN                [No Location F...    MD8000SX 192.168.12.150
+CNN                 MLI-LAB Windor       MD8000EX 192.168.12.170, 192.168.12.171
+ABC                 MLI-LAB Windor...     MD8000  192.168.12.175, 192.168.12.176
+32C-1               MLI-LAB Windor      MDX-32C   192.168.12.181
+32C-2               MLI-LAB Windor      MDX-32C   192.168.12.182
+2040 1              Switches          UNKNOWN     192.168.12.173
+SNFCCA-48X-SECON... SNFCCA21HM4         MDX-48X6C 192.168.12.230

@@ -64,9 +64,11 @@
     Copyright "Medialinks.inc 2025"
 
 .DATE
-    2025-09-26
+    2025-10-27
 
 .CHANGELOG
+    v2.21 - Fixed XSCEND device detection: now properly detects XSCEND devices when SNMP queries fail (not just when SNMP COM object is unavailable)
+    v2.20 - Added MDX2049 and XSCEND device detection: when SNMP is not available, checks device via HTTP and identifies XSCEND devices by searching for "XSCEND" keyword in web response
     v2.19 - Added support for multiple SNMP community strings: enter comma-separated values (e.g., "medialinks, custom, private") for mixed-device environments
     v2.18 - Enhanced SNMP querying: try "public" community first, then user-entered; added verbose file-only logging for detailed SNMP values when DiagnosticLevel=Verbose
     v2.17 - Improved GUI display: changed DISCOVERED DEVICES REPORT to white, removed SCAN COMPLETION SUMMARY from GUI, moved total count under DISCOVERED DEVICES REPORT
@@ -91,7 +93,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.19"
+$scriptVersion = "2.21"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -1334,6 +1336,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 $oidMap = @{
                     ".iso.org.dod.internet.private.enterprises.17186.1.10"      = "1.3.6.1.4.1.17186.1.10"
                     ".iso.org.dod.internet.private.enterprises.21839.1.2.17"    = "1.3.6.1.4.1.21839.1.2.17"
+                    ".iso.org.dod.internet.private.enterprises.21839.1.2.20"    = "1.3.6.1.4.1.21839.1.2.20"
                     ".iso.org.dod.internet.private.enterprises.17186.1.24"      = "1.3.6.1.4.1.17186.1.24"
                     ".iso.org.dod.internet.private.enterprises.17186.3.1.1.1.0" = "1.3.6.1.4.1.17186.3.1.1.1.0"
                 }
@@ -1411,6 +1414,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         return "MD8000"
                     }
                     "1.3.6.1.4.1.21839.1.2.17"    { return "MDX2040" }
+                    "1.3.6.1.4.1.21839.1.2.20"    { return "MDX2049" }
                     "1.3.6.1.4.1.17186.1.24"      { return "MDP3020" }
                     "1.3.6.1.4.1.17186.3.1.1.1.0" { 
                         # MDX-Series Refinement: Check sysName for 32C vs 48X6C
@@ -1430,6 +1434,41 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Unrecognized device type OID: '$cleanOID'")
                         return "UNKNOWN"
                     }
+                }
+            }
+
+            function Test-XscendDevice {
+                param([string]$IP)
+                try {
+                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Testing for XSCEND device via HTTP")
+                    
+                    # Create web request with timeout
+                    $webRequest = [System.Net.WebRequest]::Create("http://$IP")
+                    $webRequest.Timeout = 5000  # 5 second timeout
+                    $webRequest.Method = "GET"
+                    
+                    # Get response
+                    $response = $webRequest.GetResponse()
+                    $stream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $content = $reader.ReadToEnd()
+                    
+                    # Clean up
+                    $reader.Close()
+                    $stream.Close()
+                    $response.Close()
+                    
+                    # Check if content contains "XSCEND"
+                    if ($content -match "XSCEND") {
+                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - XSCEND keyword found in HTTP response")
+                        return $true
+                    } else {
+                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - XSCEND keyword not found in HTTP response")
+                        return $false
+                    }
+                } catch {
+                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - HTTP test failed: $($_.Exception.Message)")
+                    return $false
                 }
             }
             
@@ -1503,11 +1542,24 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Device type determined: '$type'")
                         Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = $name; Location = $location; Type = $type; Status = "Responsive" })
                     } else { 
-                        Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Name Found]"; Location = "[No Location Found]"; Type = "UNKNOWN"; Status = "Unresponsive" })
+                        # SNMP failed, check for XSCEND device via HTTP before marking as UNKNOWN
+                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP query failed, checking for XSCEND device")
+                        
+                        if (Test-XscendDevice -IP $CurrentIP) {
+                            Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[HTTP Detected]"; Location = "[SNMP Failed]"; Type = "XSCEND"; Status = "Responsive" })
+                        } else {
+                            Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Name Found]"; Location = "[No Location Found]"; Type = "UNKNOWN"; Status = "Unresponsive" })
+                        }
                     }
                 } else {
-                    # SNMP not available, return ping-only result
-                    Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[SNMP Unavailable]"; Location = "[Ping Only]"; Type = "PING_ONLY"; Status = "Responsive" })
+                    # SNMP not available, check for XSCEND device via HTTP before returning ping-only result
+                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP not available, checking for XSCEND device")
+                    
+                    if (Test-XscendDevice -IP $CurrentIP) {
+                        Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[HTTP Detected]"; Location = "[No SNMP]"; Type = "XSCEND"; Status = "Responsive" })
+                    } else {
+                        Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[SNMP Unavailable]"; Location = "[Ping Only]"; Type = "PING_ONLY"; Status = "Responsive" })
+                    }
                 }
             } else {
                 Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Response]"; Location = "[No Response]"; Type = "NO_PING"; Status = "Unresponsive" })

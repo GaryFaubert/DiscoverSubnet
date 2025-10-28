@@ -1,0 +1,19 @@
+﻿# DiscoverSubnet Version 2.21 Report
+# Generated: 2025-10-28 08:49:36
+# IP Ranges Scanned: 192.168.12.20-200
+# SNMP Communities: public, medialinks
+# Max Parallel Scans: 12
+# Total Devices Found: 11
+#
+"Name";"Location";"Type";"IPs"
+"[HTTP Detected]";"[SNMP Failed]";"XSCEND";"192.168.12.21, 192.168.12.22, 192.168.12.23, 192.168.12.24, 192.168.12.49"
+"48X6C-1";"MLI-LAB Windor";"  MDX-48X6C";"192.168.12.91"
+"48X6C-2";"MLI-LAB Windor";"  MDX-48X6C";"192.168.12.92"
+"MDP3020_0000000115";"[No Location Found]";"MDP3020";"192.168.12.121"
+"MDP3020_M310000251";"[No Location Found]";"MDP3020";"192.168.12.122"
+"ESPN";"[No Location Found]";"   MD8000SX";"192.168.12.150"
+"CNN";"MLI-LAB Windor";"   MD8000EX";"192.168.12.170, 192.168.12.171"
+"ABC";"MLI-LAB Windor Windor";"    MD8000";"192.168.12.175, 192.168.12.176"
+"32C-1";"MLI-LAB Windor";"  MDX-32C";"192.168.12.181"
+"32C-2";"MLI-LAB Windor";"  MDX-32C";"192.168.12.182"
+"2040 1";"Switches";"MDX2040";"192.168.12.173"
