@@ -25,7 +25,8 @@
     OUTPUT OPTIONS:
     - Real-time GUI display with verbosity control
     - Detailed log files with timestamps
-    - Exportable results in CSV or TXT format
+    - Standards-compliant device files in CSV or TXT format (compatible with other network management tools)
+    - Proper device file format: Status;Name;Location;Type;IP(s) for CSV, CSV-formatted TXT for discovery engine compatibility
     - Option to include/exclude unresponsive devices
     
     PS2EXE COMPATIBILITY:
@@ -67,6 +68,17 @@
     2025-10-27
 
 .CHANGELOG
+    v2.32 - PS2EXE COMPATIBILITY FIX for XSCEND API: replaced Invoke-RestMethod with System.Net.WebClient for better compiled executable compatibility, replaced System.Web.HttpUtility with System.Uri.EscapeDataString, added proper WebClient disposal and error handling. XSCEND API now works in both .ps1 and compiled .exe versions.
+    v2.31 - REFINED XSCEND device naming: now uses clean device names from API (e.g., "XSX-21", "XSX-23") without IP address suffixes when proper names are available. IP suffixes only added as fallback for devices without API-discoverable names, resulting in proper device file entries like "OK;XSX-21;Windsor;XSCEND;192.168.12.21,192.168.12.22".
+    v2.30 - MAJOR FIX for XSCEND device file output: resolved device aggregation issue where multiple XSCEND devices were merged into single entry due to identical names. Now generates unique device names per IP address (e.g., "XSCEND-Device-192.168.12.21") ensuring each XSCEND device appears as separate entry in device file.
+    v2.29 - CRITICAL FIX for XSCEND device detection: resolved PowerShell function return value contamination where Write-Output calls within Get-XscendDeviceInfo were concatenating log messages with device results, causing malformed XSCEND detection responses. Fixed by using internal log message collection and proper return value handling.
+    v2.28 - Fixed empty log messages and enhanced XSCEND debugging: prevented empty/null messages from creating blank log entries, fixed JSON truncation warnings by limiting serialization depth, improved device type trimming in worker processing, added special logging for known XSCEND addresses (192.168.12.21-24, 192.168.12.49)
+    v2.27 - Fixed Trim() method errors and enhanced XSCEND debugging: resolved PSCustomObject deserialization issues when saving results by converting Type field to string before calling Trim(), enabled XSCEND WorkerLog messages in console during Standard/Verbose diagnostic modes, added individual worker debug files for verbose XSCEND troubleshooting
+    v2.26 - Fixed output format inconsistencies and improved XSCEND diagnostics: corrected TXT format to use proper semicolon delimiters and Status column, added comprehensive error logging for XSCEND API detection failures, fixed device type formatting by removing leading spaces
+    v2.25 - Enhanced XSCEND device detection with comprehensive API integration: added JWT authentication, real device name/location extraction, dual-management IP discovery, and configurable XSCEND credentials in GUI
+    v2.24 - Fixed leading/trailing whitespace in device names and locations: now properly trims SNMP-retrieved device names and locations to remove padding spaces
+    v2.23 - Added MD8000-specific formatting: device names and locations are truncated to 29 characters and special characters are removed for MD8000 series devices
+    v2.22 - Updated output format to conform to device file standards: CSV format now uses Status;Name;Location;Type;IP(s) columns with semicolon delimiters, TXT format uses CSV-formatted output for compatibility with other programs
     v2.21 - Fixed XSCEND device detection: now properly detects XSCEND devices when SNMP queries fail (not just when SNMP COM object is unavailable)
     v2.20 - Added MDX2049 and XSCEND device detection: when SNMP is not available, checks device via HTTP and identifies XSCEND devices by searching for "XSCEND" keyword in web response
     v2.19 - Added support for multiple SNMP community strings: enter comma-separated values (e.g., "medialinks, custom, private") for mixed-device environments
@@ -93,7 +105,7 @@
 # =============================================================================
 
 # Version identifier used throughout the application for logging and display
-$scriptVersion = "2.21"
+$scriptVersion = "2.32"
 
 # Robust script directory resolution that works for both .ps1 and compiled .exe files
 # This is critical for PS2EXE compatibility where standard PowerShell variables may not be available
@@ -139,6 +151,13 @@ $defaultSettings = [PSCustomObject]@{
     MaxParallelScans      = 20                              # Maximum concurrent scanning jobs
     DiagnosticLevel       = "Standard"                      # Logging detail: 'Off', 'Standard', 'Verbose'
     GuiVerbosity          = "Standard"                      # GUI display level: 'Minimal', 'Standard', 'Verbose'
+    
+    # XSCEND configuration
+    XscendEnabled         = $true                           # Enable/disable XSCEND device detection
+    XscendUsername        = "s-admin"                       # Default XSCEND API username
+    XscendPassword        = "A5hU3CqW4+"                   # Default XSCEND API password
+    XscendPort            = 80                              # XSCEND API port (80 or 8080 typically)
+    XscendProtocol        = "http"                          # XSCEND API protocol (http/https)
 }
 
 #endregion
@@ -154,6 +173,7 @@ $defaultSettings = [PSCustomObject]@{
 try {
     Add-Type -AssemblyName System.Windows.Forms  # Windows Forms controls (buttons, textboxes, etc.)
     Add-Type -AssemblyName System.Drawing        # Drawing objects (fonts, colors, sizing)
+    # Note: System.Web removed for PS2EXE compatibility - using System.Uri instead
 }
 catch {
     # Fatal error - GUI cannot function without these assemblies
@@ -664,7 +684,7 @@ function Create-ConfigForm {
     # Create the main form window with fixed dimensions and behavior
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "DiscoverSubnet v$scriptVersion - Configuration"
-    $form.Size = New-Object System.Drawing.Size(420, 480)
+    $form.Size = New-Object System.Drawing.Size(420, 600)
     $form.FormBorderStyle = 'FixedDialog'    # Prevents resizing
     $form.StartPosition = 'CenterScreen'     # Center on user's screen
     $form.MaximizeBox = $false               # Disable maximize button
@@ -790,7 +810,29 @@ function Create-ConfigForm {
     $diagDropdown = New-Object System.Windows.Forms.ComboBox; $diagDropdown.Location = New-Object System.Drawing.Point(180, $yPos); $diagDropdown.Size = New-Object System.Drawing.Size($controlWidth, 20); $diagDropdown.DropDownStyle = 'DropDownList'; [void]$diagDropdown.Items.AddRange(@('Off', 'Standard', 'Verbose')); $diagDropdown.SelectedItem = $Settings.DiagnosticLevel; $form.Controls.Add($diagDropdown); $yPos += 40
     
     # Option to include unresponsive devices in output file
-    $saveUnresponsiveCheck = New-Object System.Windows.Forms.CheckBox; $saveUnresponsiveCheck.Text = "Save SNMP-unresponsive devices to output file"; $saveUnresponsiveCheck.Location = New-Object System.Drawing.Point(20, $yPos); $saveUnresponsiveCheck.Size = New-Object System.Drawing.Size(370, 20); $saveUnresponsiveCheck.Checked = $Settings.SaveUnresponsive; $form.Controls.Add($saveUnresponsiveCheck); $yPos += 40
+    $saveUnresponsiveCheck = New-Object System.Windows.Forms.CheckBox; $saveUnresponsiveCheck.Text = "Save SNMP-unresponsive devices to output file"; $saveUnresponsiveCheck.Location = New-Object System.Drawing.Point(20, $yPos); $saveUnresponsiveCheck.Size = New-Object System.Drawing.Size(370, 20); $saveUnresponsiveCheck.Checked = $Settings.SaveUnresponsive; $form.Controls.Add($saveUnresponsiveCheck); $yPos += 30
+    
+    # =============================================================================
+    # XSCEND CONFIGURATION CONTROLS
+    # =============================================================================
+    
+    # XSCEND section separator
+    $xscendLabel = New-Object System.Windows.Forms.Label; $xscendLabel.Text = "--- XSCEND Device Configuration ---"; $xscendLabel.Location = New-Object System.Drawing.Point(20, $yPos); $xscendLabel.Size = New-Object System.Drawing.Size(370, 20); $xscendLabel.Font = New-Object System.Drawing.Font($xscendLabel.Font.FontFamily, $xscendLabel.Font.Size, [System.Drawing.FontStyle]::Bold); $form.Controls.Add($xscendLabel); $yPos += 25
+    
+    # XSCEND Enable/Disable checkbox
+    $xscendEnabledCheck = New-Object System.Windows.Forms.CheckBox; $xscendEnabledCheck.Text = "Enable XSCEND device detection via API"; $xscendEnabledCheck.Location = New-Object System.Drawing.Point(20, $yPos); $xscendEnabledCheck.Size = New-Object System.Drawing.Size(370, 20); $xscendEnabledCheck.Checked = $Settings.XscendEnabled; $form.Controls.Add($xscendEnabledCheck); $yPos += 30
+    
+    # XSCEND Username
+    $label = New-Object System.Windows.Forms.Label; $label.Text = "XSCEND Username:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
+    $xscendUsernameBox = New-Object System.Windows.Forms.TextBox; $xscendUsernameBox.Location = New-Object System.Drawing.Point(180, $yPos); $xscendUsernameBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $xscendUsernameBox.Text = $Settings.XscendUsername; $form.Controls.Add($xscendUsernameBox); $yPos += 30
+    
+    # XSCEND Password
+    $label = New-Object System.Windows.Forms.Label; $label.Text = "XSCEND Password:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
+    $xscendPasswordBox = New-Object System.Windows.Forms.TextBox; $xscendPasswordBox.Location = New-Object System.Drawing.Point(180, $yPos); $xscendPasswordBox.Size = New-Object System.Drawing.Size($controlWidth, 20); $xscendPasswordBox.Text = $Settings.XscendPassword; $xscendPasswordBox.UseSystemPasswordChar = $true; $form.Controls.Add($xscendPasswordBox); $yPos += 30
+    
+    # XSCEND Port
+    $label = New-Object System.Windows.Forms.Label; $label.Text = "XSCEND API Port:"; $label.Location = New-Object System.Drawing.Point(20, $yPos); $label.Size = New-Object System.Drawing.Size($labelWidth, 20); $form.Controls.Add($label)
+    $xscendPortUpDown = New-Object System.Windows.Forms.NumericUpDown; $xscendPortUpDown.Location = New-Object System.Drawing.Point(180, $yPos); $xscendPortUpDown.Size = New-Object System.Drawing.Size($controlWidth, 20); $xscendPortUpDown.Minimum = 1; $xscendPortUpDown.Maximum = 65535; $xscendPortUpDown.Value = $Settings.XscendPort; $form.Controls.Add($xscendPortUpDown); $yPos += 40
     
     # =============================================================================
     # FORM ACTION BUTTON
@@ -800,7 +842,22 @@ function Create-ConfigForm {
     $startButton = New-Object System.Windows.Forms.Button; $startButton.Text = "Start Discovery"; $startButton.Location = New-Object System.Drawing.Point(150, $yPos); $startButton.Size = New-Object System.Drawing.Size(120, 40); $startButton.DialogResult = [System.Windows.Forms.DialogResult]::OK; $form.Controls.Add($startButton); $form.AcceptButton = $startButton
     
     # Return hashtable containing form and all controls for easy access by calling code
-    return @{ Form = $form; IpRangesBox = $ipRangesBox; CommunityBox = $communityBox; RetriesDropdown = $retriesDropdown; FileNameBox = $fileNameBox; FileTypeDropdown = $fileTypeDropdown; GuiVerbosityDropdown = $guiVerbosityDropdown; ParallelScans = $parallelScansUpDown; DiagDropdown = $diagDropdown; SaveUnresponsive = $saveUnresponsiveCheck }
+    return @{ 
+        Form = $form
+        IpRangesBox = $ipRangesBox
+        CommunityBox = $communityBox
+        RetriesDropdown = $retriesDropdown
+        FileNameBox = $fileNameBox
+        FileTypeDropdown = $fileTypeDropdown
+        GuiVerbosityDropdown = $guiVerbosityDropdown
+        ParallelScans = $parallelScansUpDown
+        DiagDropdown = $diagDropdown
+        SaveUnresponsive = $saveUnresponsiveCheck
+        XscendEnabled = $xscendEnabledCheck
+        XscendUsername = $xscendUsernameBox
+        XscendPassword = $xscendPasswordBox
+        XscendPort = $xscendPortUpDown
+    }
 }
 
 function Create-LogForm {
@@ -950,6 +1007,10 @@ try {
         # Add tooltip for community strings to explain multiple community support
         $communityTooltip = New-Object System.Windows.Forms.ToolTip
         $communityTooltip.SetToolTip($configFormElements.CommunityBox, "Enter multiple SNMP community strings separated by commas. Tool tries 'public' first, then your specified communities in order. Example: medialinks, custom, private")
+        
+        # Add tooltip for file format to explain standards compliance
+        $fileFormatTooltip = New-Object System.Windows.Forms.ToolTip
+        $fileFormatTooltip.SetToolTip($configFormElements.FileTypeDropdown, "CSV: Semicolon-delimited format (Status;Name;Location;Type;IP(s)) compatible with device management tools. TXT: CSV-formatted output for Discovery Engine compatibility.")
     }
 }
 catch {
@@ -978,6 +1039,11 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
         MaxParallelScans      = [int]$configFormElements.ParallelScans.Value
         DiagnosticLevel       = $configFormElements.DiagDropdown.SelectedItem
         GuiVerbosity          = $configFormElements.GuiVerbosityDropdown.SelectedItem
+        XscendEnabled         = $configFormElements.XscendEnabled.Checked
+        XscendUsername        = $configFormElements.XscendUsername.Text
+        XscendPassword        = $configFormElements.XscendPassword.Text
+        XscendPort            = [int]$configFormElements.XscendPort.Value
+        XscendProtocol        = "http"
     }
 
     # Validate all user inputs before proceeding with scan
@@ -1228,6 +1294,10 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
             # Helper function to create structured messages for controller communication
             function New-WorkerMessage { 
                 param($Type, $Value) 
+                # Ensure Value is not null or empty to prevent empty log entries
+                if ([string]::IsNullOrWhiteSpace($Value)) {
+                    $Value = "[Empty message filtered]"
+                }
                 [PSCustomObject]@{Type = $Type; Value = $Value; IP = $CurrentIP} 
             }
             
@@ -1236,6 +1306,22 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 param([string]$Message)
                 if ($ScanSettings.DiagnosticLevel -eq "Verbose") {
                     Write-Output (New-WorkerMessage -Type "VerboseLog" -Value $Message)
+                }
+            }
+            
+            # Helper function to write debug info to individual worker debug files
+            function Write-WorkerDebugFile {
+                param([string]$Message)
+                if ($ScanSettings.DiagnosticLevel -eq "Verbose") {
+                    try {
+                        $debugFileName = "DiscoverSubnet-Worker-$($CurrentIP.Replace('.', '_'))-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+                        $debugFilePath = Join-Path -Path $PWD -ChildPath $debugFileName
+                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                        $logEntry = "[$timestamp] $Message"
+                        Add-Content -Path $debugFilePath -Value $logEntry -ErrorAction SilentlyContinue
+                    } catch {
+                        # Silently ignore debug file write errors - they shouldn't break scanning
+                    }
                 }
             }
             
@@ -1414,7 +1500,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         return "MD8000"
                     }
                     "1.3.6.1.4.1.21839.1.2.17"    { return "MDX2040" }
-                    "1.3.6.1.4.1.21839.1.2.20"    { return "MDX2049" }
+                    "1.3.6.1.4.1.21839.1.2.20"    { return "MDX4090" }
                     "1.3.6.1.4.1.17186.1.24"      { return "MDP3020" }
                     "1.3.6.1.4.1.17186.3.1.1.1.0" { 
                         # MDX-Series Refinement: Check sysName for 32C vs 48X6C
@@ -1437,38 +1523,295 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 }
             }
 
-            function Test-XscendDevice {
-                param([string]$IP)
+            function Get-XscendDeviceInfo {
+                param(
+                    [string]$IP,
+                    [string]$Username = "s-admin",
+                    [string]$Password = "A5hU3CqW4+",
+                    [int]$Port = 80,
+                    [string]$Protocol = "http"
+                )
+                
+                # Collect log messages to return separately - don't use Write-Output for logging inside function
+                $logMessages = @()
+                
                 try {
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - Testing for XSCEND device via HTTP")
+                    # Special logging for known XSCEND addresses
+                    $knownXscendIPs = @("192.168.12.21", "192.168.12.22", "192.168.12.23", "192.168.12.24", "192.168.12.49")
+                    $isKnownXscend = $IP -in $knownXscendIPs
                     
-                    # Create web request with timeout
-                    $webRequest = [System.Net.WebRequest]::Create("http://$IP")
-                    $webRequest.Timeout = 5000  # 5 second timeout
-                    $webRequest.Method = "GET"
+                    $xscendMsg = "Attempting XSCEND device detection via API$(if ($isKnownXscend) { " (KNOWN XSCEND ADDRESS)" })"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
                     
-                    # Get response
-                    $response = $webRequest.GetResponse()
-                    $stream = $response.GetResponseStream()
-                    $reader = New-Object System.IO.StreamReader($stream)
-                    $content = $reader.ReadToEnd()
+                    $baseUrl = "${Protocol}://${IP}:${Port}"
+                    $xscendMsg = "XSCEND base URL: $baseUrl"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
                     
-                    # Clean up
-                    $reader.Close()
-                    $stream.Close()
-                    $response.Close()
+                    # Step 1: Authenticate and get JWT token (PS2EXE-compatible version)
+                    # Use .NET URL encoding instead of System.Web.HttpUtility (more PS2EXE-compatible)
+                    $encodedUsername = [System.Uri]::EscapeDataString($Username)
+                    $encodedPassword = [System.Uri]::EscapeDataString($Password)
+                    $authUrl = "$baseUrl/api/auth/token?username=$encodedUsername&password=$encodedPassword"
                     
-                    # Check if content contains "XSCEND"
-                    if ($content -match "XSCEND") {
-                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - XSCEND keyword found in HTTP response")
-                        return $true
-                    } else {
-                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - XSCEND keyword not found in HTTP response")
-                        return $false
+                    $xscendMsg = "Authenticating with XSCEND API at: $authUrl"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    $xscendMsg = "Using credentials: username=$Username"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Use WebClient instead of Invoke-RestMethod for better PS2EXE compatibility
+                    $webClient = New-Object System.Net.WebClient
+                    try {
+                        $webClient.Headers.Add("User-Agent", "DiscoverSubnet/2.31")
+                        $responseText = $webClient.DownloadString($authUrl)
+                    } finally {
+                        $webClient.Dispose()
                     }
+                    
+                    # Parse JSON response manually for PS2EXE compatibility
+                    try {
+                        $response = $responseText | ConvertFrom-Json
+                        $xscendMsg = "Auth response received: $($response | ConvertTo-Json -Depth 2 -Compress)"
+                    } catch {
+                        $response = $responseText
+                        $xscendMsg = "Auth response received as raw text: $responseText"
+                    }
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Extract token
+                    $token = $null
+                    if ($response -and $response.token) {
+                        $token = $response.token
+                        $xscendMsg = "Token extracted from response.token property"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    } elseif ($responseText -and $responseText.StartsWith("eyJ")) {
+                        $token = $responseText
+                        $xscendMsg = "Token extracted as JWT string from raw response"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    
+                    if (-not $token) {
+                        $xscendMsg = "XSCEND authentication failed - no valid token received. Response was: $($response | ConvertTo-Json -Depth 2 -Compress)"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                        return [PSCustomObject]@{
+                            Success = $false
+                            LogMessages = $logMessages
+                            Error = $xscendMsg
+                        }
+                    }
+                    
+                    $xscendMsg = "XSCEND authentication successful, token length: $($token.Length)"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Step 2: Get system information for device details
+                    $headers = @{
+                        "Authorization" = "Bearer $token"
+                        "Content-Type" = "application/json"
+                        "Accept" = "application/json"
+                    }
+                    
+                    # Try to get system management information
+                    $sysMgmtUrl = "$baseUrl/api/properties/chassis/system-management"
+                    $xscendMsg = "Querying system management at: $sysMgmtUrl"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Use WebClient for PS2EXE compatibility instead of Invoke-RestMethod
+                    $webClient2 = New-Object System.Net.WebClient
+                    try {
+                        $webClient2.Headers.Add("Authorization", "Bearer $token")
+                        $webClient2.Headers.Add("Content-Type", "application/json")
+                        $webClient2.Headers.Add("Accept", "application/json")
+                        $webClient2.Headers.Add("User-Agent", "DiscoverSubnet/2.31")
+                        $sysMgmtResponseText = $webClient2.DownloadString($sysMgmtUrl)
+                        $systemMgmt = $sysMgmtResponseText | ConvertFrom-Json
+                    } finally {
+                        $webClient2.Dispose()
+                    }
+                    # Limit JSON depth to prevent truncation warnings and focus on key properties
+                    $responsePreview = @{
+                        "device-name" = $systemMgmt.'device-name'
+                        "location" = $systemMgmt.'location'
+                        "outband-interface-count" = if ($systemMgmt.'outband-interface') { ($systemMgmt.'outband-interface' | Get-Member -MemberType NoteProperty).Count } else { 0 }
+                    }
+                    $xscendMsg = "System management response: $($responsePreview | ConvertTo-Json -Depth 2 -Compress)"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Extract device information
+                    $deviceName = "XSCEND-Device-$IP"  # Default fallback name
+                    $deviceLocation = "[API Detected]"
+                    $allIPs = @($IP)
+
+                    # Extract device name from SNMP configuration section (actual location in XSCEND API)
+                    $actualDeviceName = $null
+                    if ($systemMgmt) {
+                        # Try SNMP system name first (this is where XSCEND stores the device name like "XSX-21")
+                        if ($systemMgmt.'snmp' -and $systemMgmt.'snmp'.'snmp-sys-name' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'snmp'.'snmp-sys-name')) {
+                            $actualDeviceName = $systemMgmt.'snmp'.'snmp-sys-name'.Trim()
+                        }
+                        # Fallback to root level fields (for compatibility with other API versions)
+                        elseif ($systemMgmt.'device-name' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'device-name')) {
+                            $actualDeviceName = $systemMgmt.'device-name'.Trim()
+                        }
+                        elseif ($systemMgmt.'alias' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'alias')) {
+                            $actualDeviceName = $systemMgmt.'alias'.Trim()
+                        }
+                        elseif ($systemMgmt.'chassis' -and $systemMgmt.'chassis'.'alias' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'chassis'.'alias')) {
+                            $actualDeviceName = $systemMgmt.'chassis'.'alias'.Trim()
+                        }
+                    }
+
+                    if ($actualDeviceName) {
+                        # Use the clean device name from API (e.g., "XSX-21", "XSX-23")
+                        $deviceName = $actualDeviceName
+                        $xscendMsg = "Found XSCEND device name from API: '$actualDeviceName'"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    else {
+                        $xscendMsg = "No device-name/alias found in API response, using default name: '$deviceName'"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    
+                    # Extract location from SNMP configuration section (actual location in XSCEND API)
+                    if ($systemMgmt.'snmp' -and $systemMgmt.'snmp'.'snmp-sys-location' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'snmp'.'snmp-sys-location')) {
+                        $deviceLocation = $systemMgmt.'snmp'.'snmp-sys-location'.Trim()
+                        $xscendMsg = "Found XSCEND device location from SNMP: '$deviceLocation'"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    elseif ($systemMgmt -and $systemMgmt.'location' -and -not [string]::IsNullOrWhiteSpace($systemMgmt.'location')) {
+                        $deviceLocation = $systemMgmt.'location'.Trim()
+                        $xscendMsg = "Found XSCEND device location from root level: '$deviceLocation'"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    
+                    # Step 3: Check for peer management IP (dual-controller detection)
+                    if ($systemMgmt -and $systemMgmt.'outband-interface') {
+                        $outband1 = $systemMgmt.'outband-interface'.'1'
+                        $outband2 = $systemMgmt.'outband-interface'.'2'
+                        
+                        $ip1 = if ($outband1 -and $outband1.'ip-address') { $outband1.'ip-address'.Trim() } else { $null }
+                        $ip2 = if ($outband2 -and $outband2.'ip-address') { $outband2.'ip-address'.Trim() } else { $null }
+                        
+                        # Add peer IP if different from current IP
+                        if ($ip1 -and $ip1 -ne $IP -and $ip1 -ne "0.0.0.0") {
+                            $allIPs += $ip1
+                            $logMessages += "Worker for $IP - Found peer management interface: $ip1"
+                        }
+                        if ($ip2 -and $ip2 -ne $IP -and $ip2 -ne "0.0.0.0" -and $ip2 -ne $ip1) {
+                            $allIPs += $ip2
+                            $logMessages += "Worker for $IP - Found peer management interface: $ip2"
+                        }
+                    }
+                    
+                    # Return comprehensive device information
+                    return [PSCustomObject]@{
+                        Success = $true
+                        Name = $deviceName
+                        Location = $deviceLocation
+                        Type = "XSCEND"
+                        IPs = ($allIPs -join ",")
+                        Status = "Responsive"
+                        LogMessages = $logMessages
+                    }
+                    
                 } catch {
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $IP - HTTP test failed: $($_.Exception.Message)")
-                    return $false
+                    $xscendMsg = "XSCEND API detection failed: $($_.Exception.Message)"
+                    $logMessages += "Worker for $IP - $xscendMsg"
+                    Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    
+                    # Fallback: Try simple HTTP detection for basic XSCEND identification
+                    try {
+                        $xscendMsg = "Trying fallback HTTP detection..."
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                        $webRequest = [System.Net.WebRequest]::Create("http://$IP")
+                        $webRequest.Timeout = 5000
+                        $webRequest.Method = "GET"
+                        
+                        $response = $webRequest.GetResponse()
+                        $stream = $response.GetResponseStream()
+                        $reader = New-Object System.IO.StreamReader($stream)
+                        $content = $reader.ReadToEnd()
+                        
+                        $reader.Close()
+                        $stream.Close()
+                        $response.Close()
+                        
+                        if ($content -match "XSCEND") {
+                            $xscendMsg = "XSCEND keyword found in HTTP fallback"
+                            $logMessages += "Worker for $IP - $xscendMsg"
+                            Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                            return [PSCustomObject]@{
+                                Success = $true
+                                Name = "[HTTP Detected]"
+                                Location = "[API Failed]"
+                                Type = "XSCEND"
+                                IPs = $IP
+                                Status = "Responsive"
+                                LogMessages = $logMessages
+                            }
+                        }
+                    } catch {
+                        $xscendMsg = "HTTP fallback also failed: $($_.Exception.Message)"
+                        $logMessages += "Worker for $IP - $xscendMsg"
+                        Write-WorkerDebugFile -Message "Worker for $IP - $xscendMsg"
+                    }
+                    
+                    return [PSCustomObject]@{
+                        Success = $false
+                        LogMessages = $logMessages
+                        Error = "XSCEND detection failed"
+                    }
+                }
+            }
+
+            function Format-MD8000DeviceInfo {
+                param([string]$Name, [string]$Location)
+                
+                # Function to clean and truncate MD8000 device names and locations
+                # Removes special characters and truncates to 29 characters max
+                
+                function Clean-DeviceString {
+                    param([string]$InputString)
+                    
+                    if ([string]::IsNullOrWhiteSpace($InputString)) {
+                        return $InputString
+                    }
+                    
+                    # Remove special characters (keep only alphanumeric, spaces, hyphens, and underscores)
+                    $cleaned = $InputString -replace '[^a-zA-Z0-9\s\-_]', ''
+                    
+                    # Trim whitespace
+                    $cleaned = $cleaned.Trim()
+                    
+                    # Truncate to 29 characters
+                    if ($cleaned.Length -gt 29) {
+                        $cleaned = $cleaned.Substring(0, 29).Trim()
+                    }
+                    
+                    return $cleaned
+                }
+                
+                $cleanedName = Clean-DeviceString -InputString $Name
+                $cleanedLocation = Clean-DeviceString -InputString $Location
+                
+                return @{
+                    Name = $cleanedName
+                    Location = $cleanedLocation
                 }
             }
             
@@ -1530,34 +1873,93 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                         
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP data retrieved: typeOID='$typeOID', name='$name', location='$location'")
                         
-                        # Handle empty/null values like v1 does
-                        if ([string]::IsNullOrWhiteSpace($name)) { $name = "[No Name Found]" }
-                        if ([string]::IsNullOrWhiteSpace($location)) { $location = "[No Location Found]" }
+                        # Handle empty/null values and trim whitespace to remove leading/trailing spaces
+                        if ([string]::IsNullOrWhiteSpace($name)) { 
+                            $name = "[No Name Found]" 
+                        } else {
+                            $name = $name.Trim()  # Remove leading and trailing whitespace
+                        }
+                        if ([string]::IsNullOrWhiteSpace($location)) { 
+                            $location = "[No Location Found]" 
+                        } else {
+                            $location = $location.Trim()  # Remove leading and trailing whitespace
+                        }
                         
                         # If the type OID is missing, the type is UNKNOWN.
                         $type = if ($typeOID) { Get-DeviceType -OID $typeOID -SysName $name -IP $CurrentIP -Communities $communityStrings } else { "UNKNOWN" }
+                        
+                        # Apply MD8000-specific formatting: truncate name and location to 29 chars and remove special characters
+                        if ($type -match "^MD8000") {
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Applying MD8000-specific formatting to name and location")
+                            $md8000Info = Format-MD8000DeviceInfo -Name $name -Location $location
+                            $name = $md8000Info.Name
+                            $location = $md8000Info.Location
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - MD8000 formatted: Name='$name', Location='$location'")
+                        }
                         
                         Write-VerboseLog "Worker for $CurrentIP - Final processed values: Name='$name', Location='$location', Type='$type'"
                         
                         Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - Device type determined: '$type'")
                         Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = $name; Location = $location; Type = $type; Status = "Responsive" })
                     } else { 
-                        # SNMP failed, check for XSCEND device via HTTP before marking as UNKNOWN
-                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP query failed, checking for XSCEND device")
-                        
-                        if (Test-XscendDevice -IP $CurrentIP) {
-                            Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[HTTP Detected]"; Location = "[SNMP Failed]"; Type = "XSCEND"; Status = "Responsive" })
+                        # SNMP failed, check for XSCEND device via API before marking as UNKNOWN (if XSCEND detection enabled)
+                        if ($ScanSettings.XscendEnabled) {
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP query failed, checking for XSCEND device")
+                            
+                            try {
+                                $xscendInfo = Get-XscendDeviceInfo -IP $CurrentIP -Username $ScanSettings.XscendUsername -Password $ScanSettings.XscendPassword -Port $ScanSettings.XscendPort -Protocol $ScanSettings.XscendProtocol
+                                
+                                # Output log messages from XSCEND function
+                                if ($xscendInfo.LogMessages) {
+                                    foreach ($logMsg in $xscendInfo.LogMessages) {
+                                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value $logMsg)
+                                    }
+                                }
+                                
+                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection returned: Success=$($xscendInfo.Success), Type=$($xscendInfo.Type)")
+                                if ($xscendInfo -and $xscendInfo.Success) {
+                                    Write-Output ([PSCustomObject]@{ IP = $xscendInfo.IPs; Name = $xscendInfo.Name; Location = $xscendInfo.Location; Type = $xscendInfo.Type; Status = $xscendInfo.Status })
+                                } else {
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection failed or returned null")
+                                    Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Name Found]"; Location = "[No Location Found]"; Type = "UNKNOWN"; Status = "Unresponsive" })
+                                }
+                            } catch {
+                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection threw exception: $($_.Exception.Message)")
+                                Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Name Found]"; Location = "[No Location Found]"; Type = "UNKNOWN"; Status = "Unresponsive" })
+                            }
                         } else {
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP query failed, XSCEND detection disabled")
                             Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[No Name Found]"; Location = "[No Location Found]"; Type = "UNKNOWN"; Status = "Unresponsive" })
                         }
                     }
                 } else {
-                    # SNMP not available, check for XSCEND device via HTTP before returning ping-only result
-                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP not available, checking for XSCEND device")
-                    
-                    if (Test-XscendDevice -IP $CurrentIP) {
-                        Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[HTTP Detected]"; Location = "[No SNMP]"; Type = "XSCEND"; Status = "Responsive" })
+                    # SNMP not available, check for XSCEND device via API before returning ping-only result (if XSCEND detection enabled)
+                    if ($ScanSettings.XscendEnabled) {
+                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP not available, checking for XSCEND device")
+                        
+                        try {
+                            $xscendInfo = Get-XscendDeviceInfo -IP $CurrentIP -Username $ScanSettings.XscendUsername -Password $ScanSettings.XscendPassword -Port $ScanSettings.XscendPort -Protocol $ScanSettings.XscendProtocol
+                            
+                            # Output log messages from XSCEND function
+                            if ($xscendInfo.LogMessages) {
+                                foreach ($logMsg in $xscendInfo.LogMessages) {
+                                    Write-Output (New-WorkerMessage -Type "WorkerLog" -Value $logMsg)
+                                }
+                            }
+                            
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection returned: Success=$($xscendInfo.Success), Type=$($xscendInfo.Type)")
+                            if ($xscendInfo -and $xscendInfo.Success) {
+                                Write-Output ([PSCustomObject]@{ IP = $xscendInfo.IPs; Name = $xscendInfo.Name; Location = $xscendInfo.Location; Type = $xscendInfo.Type; Status = $xscendInfo.Status })
+                            } else {
+                                Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection failed, returning PING_ONLY")
+                                Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[SNMP Unavailable]"; Location = "[Ping Only]"; Type = "PING_ONLY"; Status = "Responsive" })
+                            }
+                        } catch {
+                            Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - XSCEND detection threw exception: $($_.Exception.Message)")
+                            Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[SNMP Unavailable]"; Location = "[Ping Only]"; Type = "PING_ONLY"; Status = "Responsive" })
+                        }
                     } else {
+                        Write-Output (New-WorkerMessage -Type "WorkerLog" -Value "Worker for $CurrentIP - SNMP not available, XSCEND detection disabled")
                         Write-Output ([PSCustomObject]@{ IP = $CurrentIP; Name = "[SNMP Unavailable]"; Location = "[Ping Only]"; Type = "PING_ONLY"; Status = "Responsive" })
                     }
                 }
@@ -1613,7 +2015,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                                 } else {
                                     $deviceName = if ($jobResult.Name -and $jobResult.Name -notin @("[SNMP Unavailable]", "[No Name Found]")) { $jobResult.Name } else { "UNKNOWN" }
                                     $deviceLocation = if ($jobResult.Location -and $jobResult.Location -notin @("[Ping Only]", "[No Location Found]")) { $jobResult.Location } else { "UNKNOWN" }
-                                    $deviceType = if ($jobResult.Type -and $jobResult.Type -ne "PING_ONLY") { $jobResult.Type } else { "UNKNOWN" }
+                                    $deviceType = if ($jobResult.Type -and $jobResult.Type -ne "PING_ONLY") { ([string]$jobResult.Type).Trim() } else { "UNKNOWN" }
                                     Write-Output (New-JobMessage -Type "Log" -Value "Discovered $($jobResult.IP): Name=$deviceName, Location=$deviceLocation, Type=$deviceType")
                                 }
                                 [void]$allResults.Add($jobResult)
@@ -1656,7 +2058,10 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                     # Process all outputs from the job
                     foreach ($jobResult in $jobResults) {
                         if ($jobResult -and $jobResult.Type -eq "WorkerLog") {
-                            # Skip worker log messages from GUI display (keep in full log only)
+                            # Show worker log messages only when DiagnosticLevel is Verbose or Standard
+                            if ($Settings.DiagnosticLevel -in @("Verbose", "Standard")) {
+                                Write-Output (New-JobMessage -Type "Log" -Value $jobResult.Value)
+                            }
                         } elseif ($jobResult -and $jobResult.Type -eq "VerboseLog") {
                             # Verbose log messages: write to log file only, never to GUI
                             Write-Output (New-JobMessage -Type "VerboseFileOnly" -Value $jobResult.Value)
@@ -1667,7 +2072,7 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                             } else {
                                 $deviceName = if ($jobResult.Name -and $jobResult.Name -notin @("[SNMP Unavailable]", "[No Name Found]")) { $jobResult.Name } else { "UNKNOWN" }
                                 $deviceLocation = if ($jobResult.Location -and $jobResult.Location -notin @("[Ping Only]", "[No Location Found]")) { $jobResult.Location } else { "UNKNOWN" }
-                                $deviceType = if ($jobResult.Type -and $jobResult.Type -ne "PING_ONLY") { $jobResult.Type } else { "UNKNOWN" }
+                                $deviceType = if ($jobResult.Type -and $jobResult.Type -ne "PING_ONLY") { ([string]$jobResult.Type).Trim() } else { "UNKNOWN" }
                                 Write-Output (New-JobMessage -Type "Log" -Value "Discovered $($jobResult.IP): Name=$deviceName, Location=$deviceLocation, Type=$deviceType")
                             }
                             [void]$allResults.Add($jobResult)
@@ -1905,34 +2310,40 @@ if ($configFormElements.Form.DialogResult -eq [System.Windows.Forms.DialogResult
                 # Write header lines to file first
                 $headerLines | Out-File -FilePath $outputFilePath -Encoding UTF8
                 
-                # Format and append data based on selected file type
+                # Format and append data based on selected file type - conforming to device file format standards
                 if ($scanSettings.OutputFileExtension -eq 'csv') {
-                    # CSV format with semicolon delimiters - manually format to avoid Export-Csv append issues
-                    '"Name";"Location";"Type";"IPs"' | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
+                    # CSV format with semicolon delimiters - Standard device file format: Status;Name;Location;Type;IP(s)
+                    'Status;Name;Location;Type;IP(s)' | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
                     foreach ($device in $outputData) {
-                        $csvLine = "`"$($device.Name)`";`"$($device.Location)`";`"$($device.Type)`";`"$($device.IPs)`""
+                        # Determine device status based on type and responsiveness
+                        $status = if ($device.Type -in @('UNKNOWN', 'PING_ONLY', 'NO_PING')) { 'Warning' } else { 'OK' }
+                        
+                        # Format IPs without spaces around commas (requirement: '1.1.1.1,1.1.1.2' not '1.1.1.1, 1.1.1.2')
+                        $formattedIPs = $device.IPs -replace '\s*,\s*', ','
+                        
+                        # Remove leading/trailing spaces from device type (convert to string first for deserialized objects)
+                        $cleanType = [string]$device.Type
+                        $cleanType = $cleanType.Trim()
+                        
+                        $csvLine = "$status;$($device.Name);$($device.Location);$cleanType;$formattedIPs"
                         $csvLine | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
                     }
                 } else {
-                    # TXT format - tab-delimited for better readability
-                    $txtHeader = "Name".PadRight(20) + "Location".PadRight(18) + "Type".PadRight(12) + "IPs"
-                    $txtHeader | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
-                    "-" * 70 | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
-                    
+                    # TXT format - CSV-formatted TXT (Discovery Engine compatibility with semicolon delimiters)
+                    'Status;Name;Location;Type;IP(s)' | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
                     foreach ($device in $outputData) {
-                        # Convert properties to strings to avoid PadRight issues with deserialized objects
-                        $nameStr = [string]$device.Name
-                        $locationStr = [string]$device.Location
-                        $typeStr = [string]$device.Type
-                        $ipsStr = [string]$device.IPs
+                        # Determine device status based on type and responsiveness
+                        $status = if ($device.Type -in @('UNKNOWN', 'PING_ONLY', 'NO_PING')) { 'Warning' } else { 'OK' }
                         
-                        # Truncate long names/locations to fit better
-                        $name = if ($nameStr.Length -gt 19) { $nameStr.Substring(0,16) + "..." } else { $nameStr }
-                        $location = if ($locationStr.Length -gt 17) { $locationStr.Substring(0,14) + "..." } else { $locationStr }
-                        $type = if ($typeStr.Length -gt 11) { $typeStr.Substring(0,8) + "..." } else { $typeStr }
+                        # Format IPs without spaces around commas
+                        $formattedIPs = $device.IPs -replace '\s*,\s*', ','
                         
-                        $line = $name.PadRight(20) + $location.PadRight(18) + $type.PadRight(12) + $ipsStr
-                        $line | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
+                        # Remove leading/trailing spaces from device type (convert to string first for deserialized objects)
+                        $cleanType = [string]$device.Type
+                        $cleanType = $cleanType.Trim()
+                        
+                        $csvLine = "$status;$($device.Name);$($device.Location);$cleanType;$formattedIPs"
+                        $csvLine | Out-File -FilePath $outputFilePath -Encoding UTF8 -Append
                     }
                 }
                 

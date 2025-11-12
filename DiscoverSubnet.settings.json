@@ -1,11 +1,16 @@
 {
-    "IpRanges":  "192.168.12.20-200",
+    "IpRanges":  "192.168.12.20-183",
     "SnmpCommunity":  "medialinks",
     "Retries":  0,
-    "OutputFileName":  "DiscoveredDevices",
-    "OutputFileExtension":  "csv",
+    "OutputFileName":  "DiscoveredDevices12NOV2035",
+    "OutputFileExtension":  "txt",
     "SaveUnresponsive":  false,
     "MaxParallelScans":  12,
-    "DiagnosticLevel":  "Standard",
-    "GuiVerbosity":  "Standard"
+    "DiagnosticLevel":  "Verbose",
+    "GuiVerbosity":  "Standard",
+    "XscendEnabled":  true,
+    "XscendUsername":  "s-admin",
+    "XscendPassword":  "A5hU3CqW4+",
+    "XscendPort":  80,
+    "XscendProtocol":  "http"
 }
